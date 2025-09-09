@@ -1,0 +1,295 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* CSS Custom Properties for theming */
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar styles */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+  }
+  
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+  
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/* LiveKit component overrides */
+@layer components {
+  .lk-button {
+    @apply rounded-lg transition-all duration-200;
+  }
+  
+  .lk-button-primary {
+    @apply bg-voice-primary hover:bg-voice-primary/90 text-white;
+  }
+  
+  .lk-button-secondary {
+    @apply bg-voice-secondary hover:bg-voice-secondary/90 text-white;
+  }
+  
+  .lk-participant-tile {
+    @apply rounded-lg overflow-hidden border border-border;
+  }
+  
+  .lk-audio-track {
+    @apply rounded-lg;
+  }
+}
+
+/* Voice agent specific styles */
+@layer components {
+  .voice-card {
+    @apply bg-card border border-border rounded-lg p-4 shadow-sm;
+  }
+  
+  .voice-button {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium 
+           transition-colors focus-visible:outline-none focus-visible:ring-2 
+           focus-visible:ring-ring focus-visible:ring-offset-2 
+           disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+  }
+  
+  .voice-button-primary {
+    @apply voice-button bg-primary text-primary-foreground hover:bg-primary/90;
+  }
+  
+  .voice-button-secondary {
+    @apply voice-button bg-secondary text-secondary-foreground hover:bg-secondary/80;
+  }
+  
+  .voice-button-ghost {
+    @apply voice-button hover:bg-accent hover:text-accent-foreground;
+  }
+  
+  .voice-input {
+    @apply flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 
+           text-sm ring-offset-background file:border-0 file:bg-transparent 
+           file:text-sm file:font-medium placeholder:text-muted-foreground 
+           focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring 
+           focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  
+  .waveform-container {
+    @apply flex items-end justify-center space-x-1 h-16;
+  }
+  
+  .waveform-bar {
+    @apply bg-waveform rounded-full transition-all duration-100 ease-in-out;
+    min-height: 4px;
+    width: 3px;
+  }
+  
+  .transcript-container {
+    @apply bg-card border border-border rounded-lg p-4 max-h-64 overflow-y-auto scrollbar-thin;
+  }
+  
+  .transcript-message {
+    @apply mb-2 last:mb-0;
+  }
+  
+  .transcript-user {
+    @apply text-right;
+  }
+  
+  .transcript-agent {
+    @apply text-left;
+  }
+  
+  .transcript-user .transcript-bubble {
+    @apply bg-primary text-primary-foreground ml-auto;
+  }
+  
+  .transcript-agent .transcript-bubble {
+    @apply bg-muted text-muted-foreground mr-auto;
+  }
+  
+  .transcript-bubble {
+    @apply rounded-lg px-3 py-2 max-w-xs break-words;
+  }
+  
+  .status-indicator {
+    @apply flex items-center space-x-2 text-sm;
+  }
+  
+  .status-dot {
+    @apply w-2 h-2 rounded-full;
+  }
+  
+  .status-connected .status-dot {
+    @apply bg-voice-success animate-pulse-slow;
+  }
+  
+  .status-connecting .status-dot {
+    @apply bg-voice-warning animate-pulse;
+  }
+  
+  .status-disconnected .status-dot {
+    @apply bg-voice-error;
+  }
+  
+  .status-error .status-dot {
+    @apply bg-voice-error animate-pulse;
+  }
+  
+  .tool-result-card {
+    @apply voice-card border-l-4 border-l-voice-accent;
+  }
+  
+  .vision-dropzone {
+    @apply border-2 border-dashed border-muted-foreground/25 rounded-lg p-8 
+           text-center hover:border-muted-foreground/50 transition-colors 
+           cursor-pointer bg-muted/10;
+  }
+  
+  .vision-dropzone.active {
+    @apply border-voice-primary bg-voice-primary/10;
+  }
+  
+  .settings-section {
+    @apply space-y-4 py-4 border-b border-border last:border-b-0;
+  }
+  
+  .settings-label {
+    @apply text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70;
+  }
+  
+  .recording-indicator {
+    @apply w-3 h-3 bg-red-500 rounded-full recording-indicator;
+  }
+}
+
+/* Animation keyframes */
+@keyframes waveform {
+  0%, 100% { transform: scaleY(0.5); }
+  50% { transform: scaleY(1); }
+}
+
+@keyframes recording {
+  0% { opacity: 1; }
+  50% { opacity: 0.5; }
+  100% { opacity: 1; }
+}
+
+@keyframes connection {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  .waveform-bar {
+    animation: none !important;
+  }
+  
+  .recording-indicator {
+    animation: none !important;
+    opacity: 1 !important;
+  }
+  
+  .connection-spinner {
+    animation: none !important;
+  }
+  
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Focus styles for accessibility */
+@layer utilities {
+  .focus-visible:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+}
+
+/* Print styles */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  
+  body {
+    color: black !important;
+    background: white !important;
+  }
+}

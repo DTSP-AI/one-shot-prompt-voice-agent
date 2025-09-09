@@ -1,0 +1,87 @@
+# Render deployment configuration
+# https://render.com/docs/blueprint-spec
+
+services:
+  # Backend API service
+  - type: web
+    name: voice-agent-backend
+    runtime: docker
+    plan: starter
+    region: oregon
+    branch: main
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./
+    healthCheckPath: /health
+    domains:
+      - voice-agent-api.onrender.com
+    envVars:
+      - key: PORT
+        value: 8000
+      - key: LOG_LEVEL
+        value: INFO
+      - key: MEM0_STORE
+        value: local
+      # Add your API keys via Render dashboard for security
+      - key: LIVEKIT_URL
+        sync: false  # Set via dashboard
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+    buildCommand: ""
+    startCommand: "uvicorn app:app --host 0.0.0.0 --port $PORT"
+    disk:
+      name: voice-agent-storage
+      mountPath: /app/memory_store
+      sizeGB: 1
+
+  # Frontend web service  
+  - type: web
+    name: voice-agent-frontend
+    runtime: node
+    plan: starter
+    region: oregon
+    branch: main
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    rootDir: ./frontend
+    domains:
+      - voice-agent.onrender.com
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_PUBLIC_API_BASE
+        value: https://voice-agent-api.onrender.com
+      - key: NEXT_PUBLIC_LIVEKIT_URL
+        sync: false  # Set via dashboard
+      - key: NEXT_PUBLIC_DEFAULT_ROOM
+        value: agent-room
+      - key: NEXT_PUBLIC_DARK_MODE
+        value: "true"
+
+# Databases (optional)
+databases:
+  - name: voice-agent-redis
+    plan: starter
+    region: oregon
+    databaseName: voice_agent_cache
+    user: voice_agent
+
+# Static sites (alternative frontend deployment)
+# - type: static
+#   name: voice-agent-static
+#   buildCommand: npm ci && npm run build && npm run export
+#   staticPublishPath: ./out
+#   pullRequestPreviewsEnabled: false
+#   rootDir: ./frontend
+#   domains:
+#     - voice-agent-static.onrender.com
+#   envVars:
+#     - key: NEXT_PUBLIC_API_BASE
+#       value: https://voice-agent-api.onrender.com

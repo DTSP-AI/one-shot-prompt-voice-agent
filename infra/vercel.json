@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "name": "voice-agent-frontend",
+  "build": {
+    "env": {
+      "NEXT_PUBLIC_API_BASE": "https://your-render-backend.onrender.com",
+      "NEXT_PUBLIC_LIVEKIT_URL": "wss://your-livekit-host",
+      "NEXT_PUBLIC_DEFAULT_ROOM": "agent-room",
+      "NEXT_PUBLIC_DARK_MODE": "true"
+    }
+  },
+  "functions": {
+    "frontend/pages/api/**/*.js": {
+      "runtime": "nodejs18.x"
+    }
+  },
+  "routes": [
+    {
+      "src": "/health",
+      "dest": "/api/health"
+    },
+    {
+      "src": "/api/(.*)",
+      "dest": "/api/$1"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/frontend/$1"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/api/:path*",
+      "destination": "https://your-render-backend.onrender.com/:path*"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/api/(.*)",
+      "headers": [
+        { "key": "Access-Control-Allow-Origin", "value": "*" },
+        { "key": "Access-Control-Allow-Methods", "value": "GET, POST, PUT, DELETE, OPTIONS" },
+        { "key": "Access-Control-Allow-Headers", "value": "Content-Type, Authorization" }
+      ]
+    }
+  ],
+  "env": {
+    "NEXT_PUBLIC_API_BASE": "@api_base",
+    "NEXT_PUBLIC_LIVEKIT_URL": "@livekit_url",
+    "NEXT_PUBLIC_DEFAULT_ROOM": "agent-room",
+    "NEXT_PUBLIC_DARK_MODE": "true"
+  },
+  "build": {
+    "commands": [
+      "cd frontend && npm ci && npm run build"
+    ],
+    "outputDirectory": "frontend/.next"
+  },
+  "installCommand": "cd frontend && npm ci",
+  "buildCommand": "cd frontend && npm run build",
+  "devCommand": "cd frontend && npm run dev",
+  "framework": "nextjs",
+  "public": false,
+  "regions": ["iad1"],
+  "github": {
+    "silent": true
+  }
+}
