@@ -1,0 +1,137 @@
+from typing import TypedDict, List, Dict, Any, Optional
+from langchain_core.messages import BaseMessage
+from datetime import datetime
+
+class AgentState(TypedDict):
+    """
+    Enhanced agent state for LangGraph workflow with memory integration
+    """
+    # Core conversation state
+    messages: List[BaseMessage]
+    current_message: str
+    agent_id: str
+    session_id: str
+
+    # Agent configuration
+    agent_config: Dict[str, Any]
+    max_tokens: int
+    max_iterations: int
+    tool_routing_threshold: float
+
+    # Memory and context
+    short_term_context: str
+    persistent_context: str
+    conversation_history: List[Dict[str, Any]]
+
+    # Voice and audio state
+    voice_id: str
+    audio_data: Optional[bytes]
+    transcription: str
+    tts_enabled: bool
+
+    # Tool and action state
+    available_tools: List[str]
+    tool_results: List[Dict[str, Any]]
+    next_action: Optional[str]
+
+    # Workflow control
+    iteration_count: int
+    workflow_status: str  # "active", "completed", "error", "waiting"
+    error_message: Optional[str]
+
+    # Feedback and learning
+    user_feedback: Optional[Dict[str, Any]]
+    reflection_data: Dict[str, Any]
+
+    # Performance metrics
+    start_time: float
+    processing_time: float
+    tokens_used: int
+
+def create_initial_state(
+    agent_config: Dict[str, Any],
+    session_id: str,
+    initial_message: str = ""
+) -> AgentState:
+    """Create initial agent state from configuration"""
+
+    return AgentState(
+        # Core conversation state
+        messages=[],
+        current_message=initial_message,
+        agent_id=agent_config.get("id", "default"),
+        session_id=session_id,
+
+        # Agent configuration
+        agent_config=agent_config,
+        max_tokens=agent_config.get("max_tokens", 150),
+        max_iterations=agent_config.get("max_iterations", 1),
+        tool_routing_threshold=agent_config.get("tool_routing_threshold", 0.7),
+
+        # Memory and context
+        short_term_context="",
+        persistent_context="",
+        conversation_history=[],
+
+        # Voice and audio state
+        voice_id=agent_config.get("payload", {}).get("voice", {}).get("elevenlabsVoiceId", ""),
+        audio_data=None,
+        transcription="",
+        tts_enabled=True,
+
+        # Tool and action state
+        available_tools=[],
+        tool_results=[],
+        next_action=None,
+
+        # Workflow control
+        iteration_count=0,
+        workflow_status="active",
+        error_message=None,
+
+        # Feedback and learning
+        user_feedback=None,
+        reflection_data={},
+
+        # Performance metrics
+        start_time=datetime.utcnow().timestamp(),
+        processing_time=0.0,
+        tokens_used=0
+    )
+
+def update_state(state: AgentState, **updates) -> AgentState:
+    """Update agent state with new values"""
+    new_state = state.copy()
+    for key, value in updates.items():
+        if key in new_state:
+            new_state[key] = value
+    return new_state
+
+def add_message_to_state(state: AgentState, message: BaseMessage) -> AgentState:
+    """Add a message to the state"""
+    new_state = state.copy()
+    new_state["messages"] = state["messages"] + [message]
+    return new_state
+
+def increment_iteration(state: AgentState) -> AgentState:
+    """Increment iteration counter"""
+    new_state = state.copy()
+    new_state["iteration_count"] = state["iteration_count"] + 1
+    return new_state
+
+def add_tool_result(state: AgentState, tool_result: Dict[str, Any]) -> AgentState:
+    """Add tool execution result to state"""
+    new_state = state.copy()
+    new_state["tool_results"] = state["tool_results"] + [tool_result]
+    return new_state
+
+def update_processing_metrics(state: AgentState, tokens_used: int = 0) -> AgentState:
+    """Update performance metrics"""
+    current_time = datetime.utcnow().timestamp()
+    processing_time = current_time - state["start_time"]
+
+    new_state = state.copy()
+    new_state["processing_time"] = processing_time
+    new_state["tokens_used"] = state["tokens_used"] + tokens_used
+
+    return new_state

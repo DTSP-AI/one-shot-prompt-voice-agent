@@ -1,0 +1,228 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222.2 84% 4.9%;
+    --muted: 210 40% 96%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96%;
+    --accent-foreground: 222.2 84% 4.9%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 84% 4.9%;
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 94.1%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  /* Smooth theme transitions */
+  * {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-secondary;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-md;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+
+  /* Focus styles */
+  .focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  /* Loading spinner */
+  .spinner {
+    @apply animate-spin rounded-full border-2 border-primary border-t-transparent;
+  }
+
+  /* Audio waveform */
+  .waveform-bar {
+    @apply bg-primary transition-all duration-150 ease-out;
+    animation: wave 1.5s ease-in-out infinite;
+  }
+
+  /* Voice indicator */
+  .voice-indicator {
+    @apply relative;
+  }
+
+  .voice-indicator::before {
+    content: '';
+    @apply absolute inset-0 rounded-full bg-primary/20 animate-pulse-soft;
+  }
+
+  .voice-indicator.active::before {
+    @apply bg-green-500/30 animate-ping;
+  }
+
+  /* Agent card hover effects */
+  .agent-card {
+    @apply transition-all duration-300 ease-out;
+    transform: translateY(0);
+  }
+
+  .agent-card:hover {
+    transform: translateY(-2px);
+    @apply shadow-lg shadow-primary/10;
+  }
+
+  /* Trait slider custom styles */
+  .trait-slider {
+    @apply relative;
+  }
+
+  .trait-slider .slider-thumb {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .trait-slider:hover .slider-thumb {
+    @apply scale-110 shadow-lg;
+  }
+
+  /* Voice picker styles */
+  .voice-preview-button {
+    @apply transition-all duration-200 ease-out;
+  }
+
+  .voice-preview-button:hover {
+    @apply scale-105 shadow-md;
+  }
+
+  .voice-preview-button.playing {
+    @apply bg-primary text-primary-foreground animate-pulse-soft;
+  }
+
+  /* Memory context styles */
+  .memory-context {
+    @apply border-l-2 border-primary/30 pl-4 bg-secondary/50 rounded-r;
+  }
+
+  /* MCP connector status indicators */
+  .status-enabled {
+    @apply text-green-600 dark:text-green-400;
+  }
+
+  .status-disabled {
+    @apply text-gray-500 dark:text-gray-400;
+  }
+
+  .status-error {
+    @apply text-red-600 dark:text-red-400;
+  }
+
+  .status-degraded {
+    @apply text-yellow-600 dark:text-yellow-400;
+  }
+
+  /* LiveKit room styles */
+  .livekit-room {
+    @apply w-full h-full bg-card rounded-lg overflow-hidden;
+  }
+
+  .livekit-participant {
+    @apply bg-secondary rounded-lg p-4;
+  }
+
+  /* Responsive design utilities */
+  @media (max-width: 768px) {
+    .mobile-full {
+      @apply w-full;
+    }
+
+    .mobile-hidden {
+      @apply hidden;
+    }
+  }
+
+  /* Print styles */
+  @media print {
+    .no-print {
+      display: none !important;
+    }
+  }
+
+  /* Accessibility improvements */
+  .screen-reader-only {
+    @apply sr-only;
+  }
+
+  /* Force refresh styles */
+
+  /* High contrast mode support */
+  @media (prefers-contrast: high) {
+    :root {
+      --border: 0 0% 40%;
+    }
+
+    .dark {
+      --border: 0 0% 60%;
+    }
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    * {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}

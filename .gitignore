@@ -1,0 +1,320 @@
+# ================================
+# SECRETS & CREDENTIALS (CRITICAL)
+# ================================
+# Environment files with API keys and secrets
+.env
+.env.*
+!.env.example
+*.env
+**/secrets/
+**/*secret*
+**/*key*
+**/*token*
+**/*credential*
+**/*password*
+
+# API Keys and configuration files
+config/secrets/
+secrets.json
+keys.json
+credentials.json
+auth.json
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ================================
+# DOCUMENTATION & NOTES
+# ================================
+# All markdown files (documentation, notes, plans)
+*.md
+!README.md
+**/*.md
+!**/README.md
+
+# Documentation directories
+docs/
+documentation/
+notes/
+planning/
+architecture/
+
+# ================================
+# CLAUDE & AI TOOLS
+# ================================
+# Claude-related files and directories
+.claude/
+*.claude
+claude-*
+**/.claude/
+**/claude-*
+
+# AI conversation logs and artifacts
+conversations/
+chat-logs/
+ai-artifacts/
+prompts/
+*.prompt
+*.conversation
+
+# ================================
+# DEBUGGING & DEVELOPMENT
+# ================================
+# Debug logs and temporary files
+debug/
+debug.log
+*.debug
+trace.log
+*.trace
+dump/
+*.dump
+
+# Development and architectural scripts
+scripts/dev/
+scripts/debug/
+scripts/arch/
+scripts/test/
+**/debug-*
+**/arch-*
+**/dev-*
+**/test-*
+**/*-debug.*
+**/*-arch.*
+**/*-dev.*
+
+# Temporary development files
+temp/
+tmp/
+*.tmp
+*.temp
+scratch/
+playground/
+experiments/
+
+# ================================
+# PYTHON
+# ================================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+.conda/
+conda-meta/
+
+# Python debugging
+.coverage
+.pytest_cache/
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+.prof
+
+# ================================
+# NODE.JS & FRONTEND
+# ================================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+.next/
+out/
+build/
+.cache/
+
+# Frontend debugging and development
+.turbo/
+.vercel/
+.netlify/
+storybook-static/
+
+# ================================
+# DATABASE & STORAGE
+# ================================
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+*.db3
+data/
+checkpoints/
+backups/
+
+# Vector databases
+qdrant_storage/
+**/*qdrant*/
+**/*vector*/
+**/*embeddings*/
+
+# ================================
+# LOGS & MONITORING
+# ================================
+logs/
+*.log
+*.log.*
+log/
+**/*.log
+**/log/
+
+# Monitoring and metrics
+metrics/
+monitoring/
+traces/
+
+# ================================
+# IDE & EDITORS
+# ================================
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+.emacs.d/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+out/
+
+# ================================
+# OS SPECIFIC
+# ================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+.AppleDouble
+.LSOverride
+
+# Windows
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# ================================
+# CONTAINERS & DEPLOYMENT
+# ================================
+.dockerignore
+docker-compose.override.yml
+*.dockerfile
+Dockerfile.*
+!Dockerfile.frontend
+!Dockerfile.backend
+
+# Kubernetes
+k8s/
+kubernetes/
+helm/
+*.yaml
+*.yml
+!docker-compose.yml
+
+# ================================
+# MEDIA & ASSETS
+# ================================
+# Large media files
+*.mp4
+*.avi
+*.mov
+*.wav
+*.mp3
+*.flac
+*.m4a
+*.aac
+
+# Generated assets
+generated/
+dist/
+assets/generated/
+
+# ================================
+# TESTING & CI/CD
+# ================================
+# Test outputs
+test-results/
+coverage/
+.nyc_output/
+junit.xml
+*.lcov
+
+# CI/CD
+.github/workflows/
+.gitlab-ci.yml
+.travis.yml
+.circleci/
+.jenkins/
+
+# ================================
+# MISCELLANEOUS
+# ================================
+# Package manager locks (keep package.json but ignore locks)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+poetry.lock
+Pipfile.lock
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# Compiled binaries
+*.com
+*.class
+*.dll
+*.exe
+*.o
+*.so
+
+# Archives
+*.7z
+*.dmg
+*.gz
+*.iso
+*.jar
+*.rar
+*.tar
+*.zip
