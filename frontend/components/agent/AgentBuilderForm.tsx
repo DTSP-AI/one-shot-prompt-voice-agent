@@ -11,7 +11,7 @@ import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Bot, Play, Volume2 } from 'lucide-react'
+import { Bot, Play, Volume2, Upload, User } from 'lucide-react'
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Agent name is required'),
@@ -41,6 +41,7 @@ const agentSchema = z.object({
     technicality: z.number().min(0).max(100),
     safety: z.number().min(0).max(100),
   }),
+  avatar: z.string().optional(),
 })
 
 type AgentFormData = z.infer<typeof agentSchema>
@@ -86,6 +87,7 @@ export function AgentBuilderForm() {
         technicality: 50,
         safety: 80,
       },
+      avatar: '',
     },
   })
 
@@ -103,12 +105,16 @@ export function AgentBuilderForm() {
       })
 
       const data = await response.json()
-      if (data.ok && data.audio_b64) {
+      if (data.success && data.audio_b64) {
         const audio = new Audio(`data:audio/mpeg;base64,${data.audio_b64}`)
         audio.play()
+      } else {
+        console.error('Voice preview failed:', data.error || 'Unknown error')
+        alert(`Voice preview failed: ${data.error || 'ElevenLabs API may not be configured'}`)
       }
     } catch (error) {
       console.error('Failed to preview voice:', error)
+      alert('Failed to preview voice. Please check if ElevenLabs API is configured.')
     }
   }
 
@@ -117,8 +123,14 @@ export function AgentBuilderForm() {
     try {
       const response = await fetch('/api/v1/voices/elevenlabs')
       const data = await response.json()
-      if (data.ok) {
+      if (data.success) {
         setVoices(data.voices)
+      } else {
+        console.error('Voice loading failed:', data.error || 'Unknown error')
+        // Show fallback message for API key issues
+        if (data.error?.includes('API key') || data.error?.includes('authentication')) {
+          console.warn('ElevenLabs API key not configured or invalid')
+        }
       }
     } catch (error) {
       console.error('Failed to load voices:', error)
@@ -131,9 +143,33 @@ export function AgentBuilderForm() {
     loadVoices()
   }, [])
 
-  const onSubmit = (data: AgentFormData) => {
-    console.log('📦 Agent payload:', data)
-    // Here we would send to backend
+  const onSubmit = async (data: AgentFormData) => {
+    try {
+      console.log('📦 Agent payload:', data)
+
+      // Send to backend API
+      const response = await fetch('/api/v1/agents/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.detail || 'Failed to create agent')
+      }
+
+      const result = await response.json()
+      console.log('✅ Agent created successfully:', result)
+
+      // TODO: Show success message and redirect to agent list or details
+      alert(`Agent "${data.name}" created successfully!`)
+    } catch (error) {
+      console.error('❌ Failed to create agent:', error)
+      alert(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    }
   }
 
   const TraitSlider = ({
@@ -251,6 +287,26 @@ export function AgentBuilderForm() {
                 placeholder="Visual description of the agent"
                 rows={2}
               />
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Avatar Selection */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Avatar</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Avatar Selection - Simplified */}
+            <div className="space-y-2">
+              <Label htmlFor="avatar">Avatar URL (Optional)</Label>
+              <Input
+                id="avatar"
+                placeholder="Enter avatar image URL"
+                {...register('avatar')}
+                className="w-full"
+              />
+              <p className="text-sm text-muted-foreground">Leave empty for default avatar</p>
             </div>
           </CardContent>
         </Card>
