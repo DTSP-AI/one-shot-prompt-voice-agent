@@ -46,10 +46,26 @@ const agentSchema = z.object({
 
 type AgentFormData = z.infer<typeof agentSchema>
 
+// Pre-populated ElevenLabs voices
+const DEFAULT_VOICES = [
+  { voice_id: 'Rachel', name: 'Rachel (Calm, Feminine)' },
+  { voice_id: 'Drew', name: 'Drew (Warm, Masculine)' },
+  { voice_id: 'Clyde', name: 'Clyde (Authoritative, Masculine)' },
+  { voice_id: 'Bella', name: 'Bella (Expressive, Feminine)' },
+  { voice_id: 'Antoni', name: 'Antoni (Deep, Masculine)' },
+  { voice_id: 'Elli', name: 'Elli (Youthful, Feminine)' },
+  { voice_id: 'Josh', name: 'Josh (Friendly, Masculine)' },
+  { voice_id: 'Arnold', name: 'Arnold (Crisp, Masculine)' },
+  { voice_id: 'Adam', name: 'Adam (Deep, Masculine)' },
+  { voice_id: 'Sam', name: 'Sam (Raspy, Masculine)' },
+  { voice_id: 'custom', name: '🎙️ Custom Voice ID' }
+]
+
 export function AgentBuilderForm() {
   const [manualVoiceId, setManualVoiceId] = useState('')
-  const [voices, setVoices] = useState<{voice_id: string, name: string}[]>([])
+  const [voices, setVoices] = useState<{voice_id: string, name: string}[]>(DEFAULT_VOICES)
   const [isLoadingVoices, setIsLoadingVoices] = useState(false)
+  const [showCustomInput, setShowCustomInput] = useState(false)
 
   const {
     register,
@@ -122,18 +138,26 @@ export function AgentBuilderForm() {
     setIsLoadingVoices(true)
     try {
       const response = await fetch('/api/v1/voices/elevenlabs')
-      const data = await response.json()
-      if (data.success) {
-        setVoices(data.voices)
-      } else {
-        console.error('Voice loading failed:', data.error || 'Unknown error')
-        // Show fallback message for API key issues
-        if (data.error?.includes('API key') || data.error?.includes('authentication')) {
-          console.warn('ElevenLabs API key not configured or invalid')
+      if (response.ok) {
+        const data = await response.json()
+        if (data.success && data.voices) {
+          // Merge backend voices with default voices, add custom option
+          const backendVoices = data.voices.map((v: any) => ({
+            voice_id: v.voice_id,
+            name: `${v.name} (Custom)`
+          }))
+          setVoices([...DEFAULT_VOICES.slice(0, -1), ...backendVoices, DEFAULT_VOICES[DEFAULT_VOICES.length - 1]])
+        } else {
+          console.warn('Backend voices unavailable, using default voices')
+          setVoices(DEFAULT_VOICES)
         }
+      } else {
+        console.warn('Backend not available, using default ElevenLabs voices')
+        setVoices(DEFAULT_VOICES)
       }
     } catch (error) {
-      console.error('Failed to load voices:', error)
+      console.warn('Failed to load backend voices, using defaults:', error)
+      setVoices(DEFAULT_VOICES)
     } finally {
       setIsLoadingVoices(false)
     }
@@ -392,8 +416,16 @@ export function AgentBuilderForm() {
               <Label>Select Voice</Label>
               <div className="flex gap-2">
                 <Select
-                  value={watch('voice.elevenlabsVoiceId')}
-                  onValueChange={(value) => setValue('voice.elevenlabsVoiceId', value)}
+                  value={showCustomInput ? 'custom' : watch('voice.elevenlabsVoiceId')}
+                  onValueChange={(value) => {
+                    if (value === 'custom') {
+                      setShowCustomInput(true)
+                      setValue('voice.elevenlabsVoiceId', '')
+                    } else {
+                      setShowCustomInput(false)
+                      setValue('voice.elevenlabsVoiceId', value)
+                    }
+                  }}
                 >
                   <SelectTrigger className="flex-1">
                     <SelectValue placeholder="Choose a voice" />
@@ -410,7 +442,7 @@ export function AgentBuilderForm() {
                     )}
                   </SelectContent>
                 </Select>
-                {watch('voice.elevenlabsVoiceId') && (
+                {watch('voice.elevenlabsVoiceId') && !showCustomInput && (
                   <Button
                     type="button"
                     variant="outline"
@@ -426,38 +458,46 @@ export function AgentBuilderForm() {
               )}
             </div>
 
-            <div>
-              <Label htmlFor="manualVoiceId">Manual Voice ID (Override)</Label>
-              <div className="flex gap-2">
-                <Input
-                  id="manualVoiceId"
-                  value={manualVoiceId}
-                  onChange={(e) => setManualVoiceId(e.target.value)}
-                  placeholder="Enter ElevenLabs Voice ID"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => {
-                    if (manualVoiceId) {
-                      setValue('voice.elevenlabsVoiceId', manualVoiceId)
-                    }
-                  }}
-                >
-                  Use ID
-                </Button>
-                {manualVoiceId && (
+            {showCustomInput && (
+              <div>
+                <Label htmlFor="customVoiceId">Custom ElevenLabs Voice ID</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="customVoiceId"
+                    value={manualVoiceId}
+                    onChange={(e) => setManualVoiceId(e.target.value)}
+                    placeholder="Enter your ElevenLabs Voice ID (e.g. PpJ5oHQDnyCAOSi5tDHn)"
+                    className="flex-1"
+                  />
                   <Button
                     type="button"
                     variant="outline"
-                    size="icon"
-                    onClick={() => handlePreviewVoice(manualVoiceId)}
+                    onClick={() => {
+                      if (manualVoiceId.trim()) {
+                        setValue('voice.elevenlabsVoiceId', manualVoiceId.trim())
+                      }
+                    }}
+                    disabled={!manualVoiceId.trim()}
                   >
-                    <Volume2 className="h-4 w-4" />
+                    Apply
                   </Button>
-                )}
+                  {manualVoiceId.trim() && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={() => handlePreviewVoice(manualVoiceId.trim())}
+                    >
+                      <Volume2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <p className="text-sm text-muted-foreground mt-1">
+                  Find your Voice ID in your ElevenLabs account dashboard
+                </p>
               </div>
-            </div>
+            )}
+
           </CardContent>
         </Card>
 

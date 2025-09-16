@@ -22,6 +22,7 @@ class AgentCreateRequest(BaseModel):
     knowledge: Optional[Dict[str, Any]] = None
     voice: Dict[str, str]  # Must contain elevenlabsVoiceId
     traits: Optional[Dict[str, int]] = None
+    avatar: Optional[str] = None
 
 class AgentResponse(BaseModel):
     """Response model for agent operations"""
@@ -56,7 +57,8 @@ async def create_agent(
             "mission": request.mission,
             "knowledge": request.knowledge or {"urls": [], "files": []},
             "voice": {"elevenlabsVoiceId": request.voice.get("elevenlabsVoiceId", "")},
-            "traits": request.traits or {}
+            "traits": request.traits or {},
+            "avatar": request.avatar
         }
 
         agent_payload = AgentPayload(**payload_data)
@@ -83,7 +85,7 @@ async def create_agent(
             ''', (
                 agent_config.id,
                 agent_payload.name,
-                json.dumps(agent_config.dict()),
+                agent_config.json(),
                 agent_config.created_at.isoformat(),
                 agent_config.updated_at.isoformat()
             ))
@@ -217,7 +219,8 @@ async def update_agent(
             "mission": request.mission,
             "knowledge": request.knowledge or {"urls": [], "files": []},
             "voice": {"elevenlabsVoiceId": request.voice.get("elevenlabsVoiceId", "")},
-            "traits": request.traits or {}
+            "traits": request.traits or {},
+            "avatar": request.avatar
         }
 
         agent_payload = AgentPayload(**payload_data)
@@ -232,7 +235,7 @@ async def update_agent(
             WHERE id = ?
         ''', (
             agent_payload.name,
-            json.dumps(agent_config.dict()),
+            agent_config.json(),
             agent_config.updated_at.isoformat(),
             agent_id
         ))

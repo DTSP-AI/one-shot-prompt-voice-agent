@@ -1,0 +1,21 @@
+{
+  "name": "OneShotVoiceAgent",
+  "short_name": "VoiceAgent",
+  "description": "Production-ready AI Agent Platform with Voice Interaction",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

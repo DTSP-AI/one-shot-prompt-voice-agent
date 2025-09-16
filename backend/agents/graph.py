@@ -1,15 +1,14 @@
 from typing import Dict, Any, List, Optional
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 import logging
 
 from .state import AgentState, update_state, add_message_to_state, increment_iteration
 from .nodes.supervisor import supervisor_node
 from .nodes.orchestrator import orchestrator_node
-from .nodes.memory_node import memory_retrieval_node
 from .nodes.response_generator import response_generator_node
 from .nodes.voice_processor import voice_processor_node
+from memory_manager import memory_retrieval_node, memory_storage_node
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +30,7 @@ class AgentGraph:
         # Add nodes
         workflow.add_node("supervisor", supervisor_node)
         workflow.add_node("memory_retrieval", memory_retrieval_node)
+        workflow.add_node("memory_storage", memory_storage_node)
         workflow.add_node("orchestrator", orchestrator_node)
         workflow.add_node("response_generator", response_generator_node)
         workflow.add_node("voice_processor", voice_processor_node)
@@ -76,15 +76,18 @@ class AgentGraph:
             }
         )
 
-        # Voice processor typically ends the workflow
+        # Voice processor flows to memory storage, then conditionally continues
         workflow.add_conditional_edges(
             "voice_processor",
             self._route_voice_processor,
             {
-                "orchestrator": "orchestrator",  # Loop back for continuation
+                "memory_storage": "memory_storage",
                 "end": END
             }
         )
+
+        # Memory storage typically ends the workflow
+        workflow.add_edge("memory_storage", END)
 
         return workflow.compile(checkpointer=None)  # Can add SQLite checkpointing later
 
@@ -162,13 +165,8 @@ class AgentGraph:
     def _route_voice_processor(self, state: AgentState) -> str:
         """Route from voice processor node"""
         try:
-            # Check if we need to continue the conversation
-            next_action = state.get("next_action")
-            if next_action == "continue":
-                return "orchestrator"
-
-            # Typically end after voice processing
-            return "end"
+            # Always go to memory storage to save the response
+            return "memory_storage"
 
         except Exception as e:
             logger.error(f"Voice processor routing error: {e}")

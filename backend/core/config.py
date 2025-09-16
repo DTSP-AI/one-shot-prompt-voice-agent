@@ -31,6 +31,15 @@ class Settings(BaseSettings):
     QDRANT_URL: str = "http://localhost:6333"
     QDRANT_API_KEY: str = "none"
 
+    # Memory Optimization Settings
+    MEMORY_SUMMARIZATION_INTERVAL: int = 5  # Run summarization every N turns
+    MEMORY_TOP_K_RETRIEVAL: int = 5  # Max memories to retrieve per query
+    MEMORY_EMBEDDER_MODEL: str = "text-embedding-3-small"  # Lightweight embedder
+    MEMORY_DECAY_FACTOR: float = 0.1  # Decay rate for memory relevance
+    MEMORY_MAX_THREAD_WINDOW: int = 10  # Short-term context window
+    MEMORY_PRUNE_THRESHOLD: float = 0.1  # Minimum relevance score to keep
+    MEMORY_FEEDBACK_WEIGHT: float = 0.3  # Weight for user feedback in scoring
+
     # Voice Processing
     STT_PROVIDER: str = "deepgram"
     TTS_PROVIDER: str = "elevenlabs"

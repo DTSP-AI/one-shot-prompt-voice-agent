@@ -51,6 +51,7 @@ class AgentPayload(BaseModel):
     knowledge: KnowledgeBase = Field(default_factory=KnowledgeBase)
     voice: VoiceSettings
     traits: AgentTraits = Field(default_factory=AgentTraits)
+    avatar: Optional[str] = None  # Path to avatar image
 
     @validator('name')
     def validate_name(cls, v):
@@ -80,6 +81,11 @@ class AgentConfig(BaseModel):
     max_tokens: int = Field(default=150)
     max_iterations: int = Field(default=1)
     tool_routing_threshold: float = Field(default=0.7)
+
+    class Config:
+        json_encoders = {
+            datetime: lambda v: v.isoformat()
+        }
 
     def update_performance_settings(self):
         """Update performance settings based on RVR (Relative Verbosity Response) mapping"""

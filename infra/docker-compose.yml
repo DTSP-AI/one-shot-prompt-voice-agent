@@ -1,0 +1,128 @@
+version: '3.8'
+
+services:
+  # Frontend - Next.js application
+  frontend:
+    build:
+      context: ../frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
+      - NEXT_PUBLIC_LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Backend - FastAPI application
+  backend:
+    build:
+      context: ../backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      # LiveKit Configuration
+      - LIVEKIT_URL=wss://your-livekit-instance.livekit.cloud
+      - LIVEKIT_API_KEY=your_api_key_here
+      - LIVEKIT_API_SECRET=your_secret_here
+
+      # AI Services
+      - OPENAI_API_KEY=sk-your_openai_key_here
+      - DEEPGRAM_API_KEY=your_deepgram_key_here
+      - ELEVENLABS_API_KEY=your_elevenlabs_key_here
+
+      # Memory & Storage
+      - MEM0_API_KEY=your_mem0_key_here
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=none
+      - MEM0_DB_PATH=./data/mem0.db
+      - MEM0_COLLECTION=agents
+
+      # Application Settings
+      - PORT=8000
+      - LOG_LEVEL=INFO
+      - DEBUG=false
+      - BACKEND_CORS_ORIGINS=http://localhost:3000
+
+      # Voice Processing
+      - STT_PROVIDER=deepgram
+      - TTS_PROVIDER=elevenlabs
+      - ELEVENLABS_VOICE_ID=your_default_voice_id
+
+      # Backend Configuration
+      - ENABLE_REFLECTIONS=true
+      - REFLECTION_INTERVAL_HOURS=6
+      - STM_WINDOW=10
+      - ENABLE_VISION=false
+      - ENABLE_MEM0=true
+    volumes:
+      - backend_data:/app/data
+    depends_on:
+      - qdrant
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+      start_period: 60s
+
+  # Qdrant - Vector database for memory storage
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    ports:
+      - "6333:6333"
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Redis - Session storage and caching (optional)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - app-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+volumes:
+  backend_data:
+    driver: local
+  qdrant_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  app-network:
+    driver: bridge

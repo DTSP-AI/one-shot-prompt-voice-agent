@@ -206,3 +206,50 @@ async def get_voice_settings():
             }
         }
     }
+
+@router.get("/health")
+async def check_elevenlabs_health():
+    """Check ElevenLabs API health and key validity"""
+    try:
+        if not elevenlabs_service.is_configured:
+            return {
+                "success": False,
+                "status": "not_configured",
+                "api_key_valid": False,
+                "message": "ElevenLabs API key not configured"
+            }
+
+        # Test API key by attempting to list voices
+        voices = await elevenlabs_service.list_voices()
+        api_key_valid = len(voices) > 0
+
+        # Get user info for quota status
+        user_info = await elevenlabs_service.get_user_info()
+
+        status = "healthy" if api_key_valid else "api_error"
+
+        response = {
+            "success": api_key_valid,
+            "status": status,
+            "api_key_valid": api_key_valid,
+            "voice_count": len(voices),
+            "message": "ElevenLabs service is healthy" if api_key_valid else "ElevenLabs API key invalid or service unavailable"
+        }
+
+        # Add quota info if available
+        if user_info:
+            subscription = user_info.get("subscription", {})
+            response["subscription_tier"] = subscription.get("tier", "unknown")
+            response["character_count"] = subscription.get("character_count", 0)
+            response["character_limit"] = subscription.get("character_limit", 0)
+
+        return response
+
+    except Exception as e:
+        logger.error(f"ElevenLabs health check failed: {e}")
+        return {
+            "success": False,
+            "status": "error",
+            "api_key_valid": False,
+            "message": f"Health check failed: {str(e)}"
+        }
