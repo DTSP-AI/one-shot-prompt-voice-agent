@@ -19,27 +19,27 @@ export default function HomePage() {
   const features = [
     {
       icon: Bot,
-      title: "Agent Builder",
-      description: "Create custom AI agents with personality traits, voice settings, and knowledge bases",
+      title: "Agent Logic",
+      description: "Your agents maintain unwavering character consistency across every interaction. They respond naturally with their unique personality, communication style, and expertise level, creating authentic relationships that users can depend on.",
       href: "/build"
     },
     {
       icon: Mic,
-      title: "Voice Interaction",
-      description: "Real-time voice conversations with ElevenLabs TTS and Deepgram STT",
+      title: "Voice & Vision",
+      description: "Experience crystal-clear, natural conversations with studio-quality voice synthesis and lightning-fast speech recognition. Your agents sound human, respond instantly, and handle complex audio interactions seamlessly.",
       href: "/chat"
     },
     {
       icon: Brain,
-      title: "Persistent Memory",
-      description: "Mem0-powered memory with reflections and learning from user feedback",
-      href: "/memory"
+      title: "Memory",
+      description: "Consistent autobiographical memory, episodic memory, semantic memory, and procedural memory. Your agents learn through interactions and positive reinforcement on the job, growing smarter with every conversation.",
+      href: "/build"
     },
     {
       icon: Settings,
       title: "MCP Connectors",
-      description: "Pluggable tool connectors for web search, file operations, and more",
-      href: "/catalog/mcp"
+      description: "Connect your agents to the world through Model Context Protocol. Enable web search, file operations, database queries, API integrations, and custom tools without complex development.",
+      href: "/build"
     }
   ]
 
@@ -98,13 +98,6 @@ export default function HomePage() {
             </Button>
           </div>
 
-          <div className="flex flex-wrap justify-center gap-2 mb-8">
-            {['Next.js 14', 'FastAPI', 'LangGraph', 'LiveKit', 'ElevenLabs', 'Mem0'].map((tech) => (
-              <Badge key={tech} variant="secondary">
-                {tech}
-              </Badge>
-            ))}
-          </div>
         </div>
 
         {/* Quick Actions */}
@@ -155,48 +148,11 @@ export default function HomePage() {
           </div>
         </div>
 
-        {/* Architecture Overview */}
+        {/* Get Started */}
         <div className="text-center">
-          <h2 className="text-3xl font-bold mb-8">
-            Production Architecture
-          </h2>
-
-          <div className="grid md:grid-cols-3 gap-8 mb-12">
-            <div className="space-y-4">
-              <div className="p-4 bg-primary/10 rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">Frontend</h3>
-                <p className="text-sm text-muted-foreground">
-                  Next.js 14 with React 18, Tailwind CSS, and shadcn/ui components
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-secondary rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">Backend</h3>
-                <p className="text-sm text-muted-foreground">
-                  FastAPI with LangGraph orchestration and LiveKit audio streaming
-                </p>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="p-4 bg-accent rounded-lg">
-                <h3 className="font-semibold text-lg mb-2">Services</h3>
-                <p className="text-sm text-muted-foreground">
-                  OpenAI, Deepgram STT, ElevenLabs TTS, and Mem0 memory
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <p className="text-muted-foreground mb-8">
-            Complete platform functional out-of-the-box in under 15 minutes with all features tested and working.
-          </p>
-
           <Button variant="outline" asChild>
-            <Link href="/catalog/mcp">
-              Explore MCP Connectors
+            <Link href="/build">
+              Build Your Agent
               <ChevronRight className="h-4 w-4 ml-2" />
             </Link>
           </Button>

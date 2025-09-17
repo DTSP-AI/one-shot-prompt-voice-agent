@@ -87,29 +87,6 @@ NEXT_PUBLIC_DEFAULT_ROOM=agent-room
 3. Click microphone button to start talking
 4. Agent responds with synthesized voice
 
-## Architecture
-
-### Tech Stack
-- **Frontend**: Next.js 14, React 18, Tailwind CSS, shadcn/ui
-- **Backend**: FastAPI, LangGraph, LiveKit Python SDK
-- **AI Services**: OpenAI GPT-4, Deepgram STT, ElevenLabs TTS
-- **Real-time**: LiveKit WebRTC for audio streaming
-- **Memory**: Mem0 for persistent context
-
-### Directory Structure
-```
-OneShotVoiceAgent/
-├── frontend/          # Next.js application
-│   ├── app/          # App Router pages
-│   ├── components/   # React components
-│   └── lib/          # Utilities and API client
-├── backend/          # FastAPI application
-│   ├── api/          # API endpoints
-│   ├── agents/       # LangGraph agent system
-│   ├── services/     # External service integrations
-│   └── models/       # Data models
-└── scripts/          # Setup and deployment scripts
-```
 
 ## Troubleshooting
 

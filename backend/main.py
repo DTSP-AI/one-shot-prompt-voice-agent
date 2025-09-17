@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 import uvicorn
 import logging
 from core.config import settings
-from api import agents, livekit, voice, health, mcp
+from api import agents, livekit, voice, health, mcp, agent_api
 
 # Setup logging
 logging.basicConfig(
@@ -49,6 +49,7 @@ app.add_middleware(
 # Include routers
 app.include_router(health.router, tags=["health"])
 app.include_router(agents.router, prefix="/api/v1/agents", tags=["agents"])
+app.include_router(agent_api.router, tags=["agent"])  # New centralized agent API
 app.include_router(livekit.router, prefix="/api/v1/livekit", tags=["livekit"])
 app.include_router(voice.router, prefix="/api/v1/voices", tags=["voice"])
 app.include_router(mcp.router, prefix="/api/v1/mcp", tags=["mcp"])

@@ -2,6 +2,7 @@ import logging
 from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from ..state import AgentState, update_state, add_message_to_state
+from .agent_node import integrate_with_orchestrator
 
 logger = logging.getLogger(__name__)
 
@@ -38,7 +39,23 @@ async def orchestrator_node(state: AgentState) -> AgentState:
 
         # Update workflow status based on next action
         if next_action == "generate_response":
-            workflow_status = "generating_response"
+            # Use new centralized agent logic
+            try:
+                updated_state = await integrate_with_orchestrator(state)
+                # If agent processing succeeded, move to voice processing if enabled
+                if updated_state.get("workflow_status") == "response_generated":
+                    if state.get("tts_enabled", True) and state.get("voice_id"):
+                        updated_state = update_state(updated_state, workflow_status="processing_voice")
+                    else:
+                        updated_state = update_state(updated_state, workflow_status="completed")
+                return updated_state
+            except Exception as e:
+                logger.error(f"Agent integration error: {e}")
+                return update_state(
+                    state,
+                    workflow_status="error",
+                    error_message=f"Agent processing failed: {str(e)}"
+                )
         elif next_action == "use_tools":
             workflow_status = "using_tools"
         elif next_action == "process_voice":

@@ -40,12 +40,15 @@ async def voice_processor_node(state: AgentState) -> AgentState:
                 error_message="No messages to process for TTS"
             )
 
-        # Find the latest AI message
-        ai_response = None
-        for msg in reversed(messages):
-            if hasattr(msg, '__class__') and "AIMessage" in str(msg.__class__):
-                ai_response = msg.content
-                break
+        # Get AI response from agent_response field or latest AI message
+        ai_response = state.get("agent_response")
+
+        if not ai_response:
+            # Fallback: find the latest AI message
+            for msg in reversed(messages):
+                if hasattr(msg, '__class__') and "AIMessage" in str(msg.__class__):
+                    ai_response = msg.content
+                    break
 
         if not ai_response:
             return update_state(

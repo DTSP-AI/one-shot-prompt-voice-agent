@@ -5,7 +5,7 @@ Quick test script for streamlined memory_manager.py
 
 import asyncio
 from langchain_core.messages import HumanMessage, AIMessage
-from memory_manager import MemoryManager, build_context_prompt
+from OneShotVoiceAgent.backend.memory.memory_manager import MemoryManager, build_context_prompt
 
 async def test_memory_manager():
     """Test the streamlined memory manager"""

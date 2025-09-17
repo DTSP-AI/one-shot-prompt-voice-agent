@@ -1,0 +1,16 @@
+./frontend/app/chat/page.tsx:                      placeholder="voice-chat-room"
+./frontend/app/chat/page.tsx:                      placeholder="Enter your name"
+./frontend/components/agent/AgentBuilderForm.tsx:      // TODO: Show success message and redirect to agent list or details
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="e.g., Alex the Assistant"
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="Brief description of the agent's role"
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="What is this agent's primary goal?"
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="Who is this agent? Background, expertise, personality..."
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="How does this agent communicate and interact?"
+./frontend/components/agent/AgentBuilderForm.tsx:                placeholder="Visual description of the agent"
+./frontend/components/agent/AgentBuilderForm.tsx:                    <SelectValue placeholder="Choose a voice" />
+./frontend/components/agent/AgentBuilderForm.tsx:                  placeholder="Enter ElevenLabs Voice ID"
+./frontend/components/ui/input.tsx:          "flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+./frontend/components/ui/select.tsx:      "flex h-9 w-full items-center justify-between whitespace-nowrap rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50 [&>span]:line-clamp-1",
+./frontend/components/ui/textarea.tsx:          "flex min-h-[60px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50",
+./frontend/package-lock.json:      "resolved": "https://registry.npmjs.org/@vitest/mocker/-/mocker-2.1.9.tgz",
+./frontend/package-lock.json:        "@vitest/mocker": "2.1.9",

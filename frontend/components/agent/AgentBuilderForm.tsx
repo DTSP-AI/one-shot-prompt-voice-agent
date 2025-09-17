@@ -4,6 +4,8 @@ import React, { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
+import { useRouter } from 'next/navigation'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -12,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Slider } from '@/components/ui/slider'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Bot, Play, Volume2, Upload, User } from 'lucide-react'
+import { useApi } from '@/lib/api-provider'
 
 const agentSchema = z.object({
   name: z.string().min(1, 'Agent name is required'),
@@ -33,7 +36,6 @@ const agentSchema = z.object({
     creativity: z.number().min(0).max(100),
     empathy: z.number().min(0).max(100),
     assertiveness: z.number().min(0).max(100),
-    sarcasm: z.number().min(0).max(100),
     verbosity: z.number().min(0).max(100),
     formality: z.number().min(0).max(100),
     confidence: z.number().min(0).max(100),
@@ -66,6 +68,8 @@ export function AgentBuilderForm() {
   const [voices, setVoices] = useState<{voice_id: string, name: string}[]>(DEFAULT_VOICES)
   const [isLoadingVoices, setIsLoadingVoices] = useState(false)
   const [showCustomInput, setShowCustomInput] = useState(false)
+  const api = useApi()
+  const router = useRouter()
 
   const {
     register,
@@ -95,7 +99,6 @@ export function AgentBuilderForm() {
         creativity: 50,
         empathy: 50,
         assertiveness: 50,
-        sarcasm: 20,
         verbosity: 50,
         formality: 50,
         confidence: 50,
@@ -111,52 +114,42 @@ export function AgentBuilderForm() {
 
   const handlePreviewVoice = async (voiceId: string) => {
     try {
-      const response = await fetch('/api/v1/voices/preview', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          voice_id: voiceId,
-          text: "Hello! This is how I would sound as your AI agent."
-        }),
+      const data = await api.post<{success: boolean, audio_b64?: string, error?: string}>('/api/v1/voices/preview', {
+        voice_id: voiceId,
+        text: "Hello! This is how I would sound as your AI agent."
       })
 
-      const data = await response.json()
       if (data.success && data.audio_b64) {
         const audio = new Audio(`data:audio/mpeg;base64,${data.audio_b64}`)
         audio.play()
+        toast.success('Voice preview playing!')
       } else {
         console.error('Voice preview failed:', data.error || 'Unknown error')
-        alert(`Voice preview failed: ${data.error || 'ElevenLabs API may not be configured'}`)
+        toast.error(`Voice preview failed: ${data.error || 'ElevenLabs API may not be configured'}`)
       }
     } catch (error) {
       console.error('Failed to preview voice:', error)
-      alert('Failed to preview voice. Please check if ElevenLabs API is configured.')
+      toast.error('Failed to preview voice. Please check if ElevenLabs API is configured.')
     }
   }
 
   const loadVoices = async () => {
     setIsLoadingVoices(true)
     try {
-      const response = await fetch('/api/v1/voices/elevenlabs')
-      if (response.ok) {
-        const data = await response.json()
-        if (data.success && data.voices) {
-          // Merge backend voices with default voices, add custom option
-          const backendVoices = data.voices.map((v: any) => ({
-            voice_id: v.voice_id,
-            name: `${v.name} (Custom)`
-          }))
-          setVoices([...DEFAULT_VOICES.slice(0, -1), ...backendVoices, DEFAULT_VOICES[DEFAULT_VOICES.length - 1]])
-        } else {
-          console.warn('Backend voices unavailable, using default voices')
-          setVoices(DEFAULT_VOICES)
-        }
+      const data = await api.get<{success: boolean, voices: any[]}>('/api/v1/voices/elevenlabs')
+      if (data.success && data.voices) {
+        // Merge backend voices with default voices, add custom option
+        const backendVoices = data.voices.map((v: any) => ({
+          voice_id: v.voice_id,
+          name: `${v.name} (Custom)`
+        }))
+        setVoices([...DEFAULT_VOICES.slice(0, -1), ...backendVoices, DEFAULT_VOICES[DEFAULT_VOICES.length - 1]])
       } else {
-        console.warn('Backend not available, using default ElevenLabs voices')
+        console.warn('Backend voices unavailable, using default voices')
         setVoices(DEFAULT_VOICES)
       }
     } catch (error) {
-      console.warn('Failed to load backend voices, using defaults:', error)
+      console.warn('Backend not available, using default ElevenLabs voices')
       setVoices(DEFAULT_VOICES)
     } finally {
       setIsLoadingVoices(false)
@@ -171,28 +164,58 @@ export function AgentBuilderForm() {
     try {
       console.log('📦 Agent payload:', data)
 
-      // Send to backend API
-      const response = await fetch('/api/v1/agents/', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-      })
+      // Structure data according to architecture map:
+      // 1. agent_specific_prompt.json (prompt template with traits)
+      // 2. agent_attributes.json (agent configuration)
 
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.detail || 'Failed to create agent')
+      const agentPayload = {
+        // Core agent data for JSON generation
+        name: data.name,
+        shortDescription: data.shortDescription,
+        identity: data.characterDescription?.identity || '',
+        mission: data.mission || '',
+        interactionStyle: data.characterDescription?.interactionStyle || '',
+
+        // Personality traits (aligned with prompt template)
+        traits: {
+          creativity: data.traits.creativity,
+          empathy: data.traits.empathy,
+          assertiveness: data.traits.assertiveness,
+          verbosity: data.traits.verbosity,
+          formality: data.traits.formality,
+          confidence: data.traits.confidence,
+          humor: data.traits.humor,
+          technicality: data.traits.technicality,
+          safety: data.traits.safety
+        },
+
+        // Voice and other attributes
+        voice: data.voice,
+        knowledge: data.knowledge,
+        avatar: data.avatar,
+
+        // Additional character description
+        characterDescription: data.characterDescription
       }
 
-      const result = await response.json()
+      // Send to backend API for JSON file generation
+      const result = await api.post<{success: boolean, agent: any, message: string, files_created?: string[]}>('/api/v1/agents/', agentPayload)
       console.log('✅ Agent created successfully:', result)
+      console.log('📄 JSON files generated:', result.files_created)
 
-      // TODO: Show success message and redirect to agent list or details
-      alert(`Agent "${data.name}" created successfully!`)
+      // Show success message and automatically redirect to chat page
+      toast.success(`Agent "${data.name}" created successfully! Redirecting to chat...`)
+
+      // Navigate to chat page with the new agent ID
+      const agentId = result.agent?.id || result.agent?.config?.id
+      if (agentId) {
+        router.push(`/chat?agent=${agentId}`)
+      } else {
+        router.push('/chat')
+      }
     } catch (error) {
       console.error('❌ Failed to create agent:', error)
-      alert(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      toast.error(`Failed to create agent: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
   }
 
@@ -359,12 +382,6 @@ export function AgentBuilderForm() {
                 label="Assertiveness"
                 value={traits.assertiveness}
                 onChange={(value) => setValue('traits.assertiveness', value)}
-              />
-              <TraitSlider
-                name="sarcasm"
-                label="Sarcasm"
-                value={traits.sarcasm}
-                onChange={(value) => setValue('traits.sarcasm', value)}
               />
               <TraitSlider
                 name="verbosity"

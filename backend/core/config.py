@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     MEM0_API_KEY: Optional[str] = None
     TWILIO_ACCOUNT_SID: Optional[str] = None
     TWILIO_AUTH_TOKEN: Optional[str] = None
+    TAVILY_API_KEY: Optional[str] = None
+    FIRECRAWL_API_KEY: Optional[str] = None
 
     # Application Settings
     PORT: int = 8000
@@ -29,6 +31,8 @@ class Settings(BaseSettings):
     MEM0_DB_PATH: str = "./data/mem0.db"
     MEM0_COLLECTION: str = "agents"
     QDRANT_URL: str = "http://localhost:6333"
+    QDRANT_HOST: str = "localhost"
+    QDRANT_PORT: int = 6333
     QDRANT_API_KEY: str = "none"
 
     # Memory Optimization Settings
@@ -53,7 +57,7 @@ class Settings(BaseSettings):
     ENABLE_MEM0: bool = True
 
     # CORS Configuration
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3005"
 
     class Config:
         env_file = ".env"

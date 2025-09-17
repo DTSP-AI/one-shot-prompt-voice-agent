@@ -1,11 +1,22 @@
 import asyncio
 import json
-from typing import Dict, List, Any, Optional
+from typing import Dict, List, Any, Optional, Tuple
 import logging
 from datetime import datetime
 import httpx
+from contextlib import AsyncExitStack
 
 logger = logging.getLogger(__name__)
+
+# MCP Client integration - only import if available
+try:
+    from mcp import ClientSession
+    from mcp.client.sse import sse_client
+    from langchain_mcp_adapters.tools import load_mcp_tools
+    MCP_AVAILABLE = True
+except ImportError:
+    MCP_AVAILABLE = False
+    logger.warning("MCP client dependencies not available - client functionality disabled")
 
 class MCPService:
     """
@@ -397,3 +408,31 @@ class MCPService:
         }
 
         return parameter_schemas.get(tool_name, {"type": "object", "description": "Tool parameters"})
+
+    # MCP Client functionality
+    async def connect_to_server(self, server_url: str, name: str) -> Tuple[Optional[Any], List[Any]]:
+        """Connect to an MCP server and load tools"""
+        if not MCP_AVAILABLE:
+            logger.error("MCP client dependencies not available")
+            return None, []
+
+        try:
+            logger.info(f"Connecting to MCP server '{name}' at {server_url}")
+
+            exit_stack = AsyncExitStack()
+            (read, write) = await exit_stack.enter_async_context(sse_client(server_url))
+            session = await exit_stack.enter_async_context(ClientSession(read, write))
+
+            await session.initialize()
+            logger.info("MCP session initialized successfully")
+
+            # Load tools
+            tools = await load_mcp_tools(session)
+            tool_names = [tool.name for tool in tools]
+            logger.info(f"Loaded {len(tools)} tools: {tool_names}")
+
+            return session, tools
+
+        except Exception as e:
+            logger.error(f"Failed to connect to MCP server: {e}")
+            return None, []

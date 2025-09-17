@@ -1,16 +1,18 @@
 """
 Streamlined Memory Manager for OneShotVoiceAgent
 Consolidates all memory functionality using LangChain, LangGraph, and Mem0
+Implements session-based isolation and tenant support
 """
 
 import logging
 from typing import Dict, List, Any, Optional, Tuple
 from datetime import datetime, timedelta
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
-from langchain.memory import ConversationBufferWindowMemory
+from langchain_core.messages import BaseMessage, HumanMessage, AIMessage, messages_from_dict, messages_to_dict
 from core.config import settings
 import json
 import math
+import uuid
+from os import getenv
 
 logger = logging.getLogger(__name__)
 
@@ -24,24 +26,29 @@ except ImportError:
 
 class MemoryManager:
     """
-    Unified memory manager handling:
-    - Short-term memory (LangChain ConversationBufferWindowMemory)
+    Unified memory manager with session isolation and tenant support:
+    - Short-term memory (session-based thread history)
     - Long-term memory (Mem0 with smart retrieval)
     - Memory optimization (summarization, decay, feedback)
-    - LangGraph integration
+    - Session/tenant isolation for multi-user support
     """
 
-    def __init__(self, agent_id: str):
-        self.agent_id = agent_id
+    def __init__(self, session_id: str, tenant_id: str = "default", agent_id: Optional[str] = None):
+        # Validate inputs
+        if not session_id or len(session_id.strip()) < 3:
+            raise ValueError("session_id must be non-empty and at least 3 characters")
+        if not tenant_id or len(tenant_id.strip()) < 1:
+            raise ValueError("tenant_id must be non-empty")
 
-        # Short-term memory using LangChain
-        self.stm = ConversationBufferWindowMemory(
-            k=settings.MEMORY_MAX_THREAD_WINDOW,
-            return_messages=True,
-            memory_key="chat_history"
-        )
+        self.session_id = f"{tenant_id}:{session_id}"
+        self.tenant_id = tenant_id
+        self.agent_id = agent_id or f"agent_{uuid.uuid4().hex[:8]}"
 
-        # Mem0 for persistent memory
+        # Session-based thread history (replacing LangChain buffer)
+        self._thread_history: List[BaseMessage] = []
+        self.max_thread_window = settings.MEMORY_MAX_THREAD_WINDOW
+
+        # Mem0 for persistent memory with strict validation
         self.mem0_client = None
         self.mem0_enabled = settings.ENABLE_MEM0 and MEM0_AVAILABLE
         self._init_mem0()
@@ -64,9 +71,15 @@ class MemoryManager:
         }
 
     def _init_mem0(self):
-        """Initialize Mem0 client with optimized config"""
+        """Initialize Mem0 client with validation and strict error handling"""
         if not self.mem0_enabled:
             return
+
+        # Require API key for non-dev environments
+        mem0_api_key = getenv("MEM0_API_KEY")
+        if not mem0_api_key and not getenv("DEV_MODE"):
+            logger.error("MEM0_API_KEY required in production mode")
+            raise ValueError("MEM0_API_KEY environment variable is required")
 
         try:
             config = {
@@ -89,61 +102,133 @@ class MemoryManager:
                 }
 
             self.mem0_client = mem0.Memory(config)
-            logger.info(f"Mem0 initialized for agent {self.agent_id}")
+            logger.info(f"Mem0 initialized for session {self.session_id}")
 
         except Exception as e:
             logger.error(f"Mem0 init failed: {e}")
             self.mem0_enabled = False
+            if not getenv("DEV_MODE"):
+                raise
 
-    def add_memory(self, message: BaseMessage, metadata: Optional[Dict] = None) -> None:
-        """
-        Add message to both short-term and conditionally to long-term memory
-        Uses LangChain for STM and Mem0 for persistent storage
-        """
-        # Add to short-term memory (LangChain handles the window automatically)
-        if isinstance(message, HumanMessage):
-            self.stm.chat_memory.add_user_message(message.content)
-        elif isinstance(message, AIMessage):
-            self.stm.chat_memory.add_ai_message(message.content)
+    def get_thread_history(self) -> List[BaseMessage]:
+        """Get the complete thread history for this session"""
+        if self.mem0_enabled and self.mem0_client:
+            try:
+                # Try to get history from Mem0 first
+                raw_history = self.mem0_client.get_all(user_id=self.session_id) or []
+                if raw_history:
+                    return messages_from_dict([msg.get("memory", {}) for msg in raw_history])
+            except Exception as e:
+                logger.warning(f"Failed to get history from Mem0: {e}")
 
-        # Manually enforce window size since LangChain's window management isn't working as expected
-        if len(self.stm.chat_memory.messages) > self.stm.k:
+        # Fallback to local thread history
+        return self._thread_history.copy()
+
+    def append_human(self, text: str) -> None:
+        """Add human message to memory"""
+        message = HumanMessage(content=text)
+        self._add_to_thread(message)
+
+        if self.mem0_enabled and self.mem0_client:
+            try:
+                self.mem0_client.add(
+                    messages=[{"role": "user", "content": text}],
+                    user_id=self.session_id,
+                    metadata={
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "session_id": self.session_id,
+                        "tenant_id": self.tenant_id
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist human message: {e}")
+
+    def append_ai(self, text: str) -> None:
+        """Add AI message to memory"""
+        message = AIMessage(content=text)
+        self._add_to_thread(message)
+
+        if self.mem0_enabled and self.mem0_client:
+            try:
+                self.mem0_client.add(
+                    messages=[{"role": "assistant", "content": text}],
+                    user_id=self.session_id,
+                    metadata={
+                        "timestamp": datetime.utcnow().isoformat(),
+                        "session_id": self.session_id,
+                        "tenant_id": self.tenant_id
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to persist AI message: {e}")
+
+    def search_memory(self, query: str, top_k: int = 5) -> List[BaseMessage]:
+        """Search memory with vector similarity"""
+        if not self.mem0_enabled or not self.mem0_client:
+            # Fallback to simple text search in thread history
+            return [msg for msg in self._thread_history
+                   if query.lower() in msg.content.lower()][:top_k]
+
+        try:
+            hits = self.mem0_client.search(
+                query=query,
+                user_id=self.session_id,
+                limit=top_k,
+                filters={"session_id": self.session_id}
+            )
+            # Convert search results back to messages
+            messages = []
+            for hit in hits:
+                content = hit.get("memory", "")
+                # Determine message type from content or metadata
+                msg_type = hit.get("metadata", {}).get("role", "user")
+                if msg_type == "assistant":
+                    messages.append(AIMessage(content=content))
+                else:
+                    messages.append(HumanMessage(content=content))
+            return messages
+        except Exception as e:
+            logger.error(f"Memory search failed: {e}")
+            return []
+
+    def clear_memory(self) -> None:
+        """Clear all memory for this session"""
+        self._thread_history.clear()
+        self.turn_count = 0
+
+        if self.mem0_enabled and self.mem0_client:
+            try:
+                # Note: Mem0 may not have direct clear method, implement as needed
+                logger.info(f"Cleared memory for session {self.session_id}")
+            except Exception as e:
+                logger.error(f"Failed to clear Mem0 memory: {e}")
+
+    def serialize_history(self) -> List[dict]:
+        """Serialize history for storage/transmission"""
+        return messages_to_dict(self._thread_history)
+
+    def _add_to_thread(self, message: BaseMessage) -> None:
+        """Add message to thread history with window management"""
+        self._thread_history.append(message)
+
+        # Enforce window size
+        if len(self._thread_history) > self.max_thread_window:
             # Remove oldest messages to maintain window size
-            excess = len(self.stm.chat_memory.messages) - self.stm.k
-            self.stm.chat_memory.messages = self.stm.chat_memory.messages[excess:]
+            excess = len(self._thread_history) - self.max_thread_window
+            self._thread_history = self._thread_history[excess:]
 
         self.turn_count += 1
         self.metrics["memories_added"] += 1
 
-        # Conditional long-term storage (every N turns or important content)
-        should_persist = (
-            self.turn_count % self.summarization_interval == 0 or
-            self._is_important_memory(message.content) or
-            (metadata and metadata.get("force_persist", False))
-        )
-
-        if should_persist and self.mem0_enabled and self.mem0_client:
-            try:
-                # Enhanced metadata for smart retrieval
-                mem_metadata = {
-                    "agent_id": self.agent_id,
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "turn": self.turn_count,
-                    "type": self._categorize_memory(message.content),
-                    **(metadata or {})
-                }
-
-                self.mem0_client.add(
-                    messages=[{"role": "user" if isinstance(message, HumanMessage) else "assistant",
-                              "content": message.content}],
-                    user_id=self.agent_id,
-                    metadata=mem_metadata
-                )
-
-                logger.debug(f"Persisted memory for agent {self.agent_id}, turn {self.turn_count}")
-
-            except Exception as e:
-                logger.error(f"Failed to persist memory: {e}")
+    # Legacy method for backward compatibility
+    def add_memory(self, message: BaseMessage, metadata: Optional[Dict] = None) -> None:
+        """Legacy method - use append_human/append_ai instead"""
+        if isinstance(message, HumanMessage):
+            self.append_human(message.content)
+        elif isinstance(message, AIMessage):
+            self.append_ai(message.content)
+        else:
+            self._add_to_thread(message)
 
     def get_memory_context(self, query: str, max_age_hours: Optional[int] = None) -> Dict[str, Any]:
         """

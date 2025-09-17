@@ -26,10 +26,10 @@ export function Header() {
               Voice Chat
             </Link>
             <Link
-              href="/memory"
+              href="/build"
               className="transition-colors hover:text-foreground/80 text-foreground/60"
             >
-              Memory
+              Features
             </Link>
           </nav>
         </div>
@@ -43,7 +43,7 @@ export function Header() {
             </Button>
             <ThemeToggle />
             <Button variant="ghost" size="icon" asChild>
-              <Link href="/settings">
+              <Link href="/build">
                 <Settings className="h-4 w-4" />
               </Link>
             </Button>

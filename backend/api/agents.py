@@ -4,6 +4,8 @@ from typing import List, Optional, Dict, Any
 import json
 import sqlite3
 from datetime import datetime
+from pathlib import Path
+import os
 
 from models.agent import AgentPayload, AgentConfig, AgentModel, AgentStatus
 from core.database import db
@@ -14,14 +16,16 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 
 class AgentCreateRequest(BaseModel):
-    """Request model for creating an agent"""
+    """Request model for creating an agent with JSON file generation"""
     name: str
     shortDescription: str
+    identity: str = ""
+    mission: str = ""
+    interactionStyle: str = ""
     characterDescription: Optional[Dict[str, Any]] = None
-    mission: Optional[str] = None
     knowledge: Optional[Dict[str, Any]] = None
     voice: Dict[str, str]  # Must contain elevenlabsVoiceId
-    traits: Optional[Dict[str, int]] = None
+    traits: Dict[str, int]  # Required traits matching prompt template
     avatar: Optional[str] = None
 
 class AgentResponse(BaseModel):
@@ -29,6 +33,7 @@ class AgentResponse(BaseModel):
     success: bool
     agent: Optional[AgentModel] = None
     message: str = ""
+    files_created: Optional[List[str]] = None  # JSON files created
 
 class AgentListResponse(BaseModel):
     """Response model for listing agents"""
@@ -42,12 +47,111 @@ async def get_database():
         await db.initialize()
     return db
 
+def generate_agent_json_files(agent_id: str, request: AgentCreateRequest) -> List[str]:
+    """
+    Generate agent-specific JSON files according to architecture map:
+    1. agent_specific_prompt.json - Prompt template with traits
+    2. agent_attributes.json - Agent configuration and attributes
+    """
+    prompts_dir = Path(__file__).parent.parent / "prompts"
+    prompts_dir.mkdir(exist_ok=True)
+
+    agent_dir = prompts_dir / agent_id
+    agent_dir.mkdir(exist_ok=True)
+
+    files_created = []
+
+    # 1. Generate agent_specific_prompt.json
+    prompt_data = {
+        "system_prompt": f"""You are {request.name}, {request.shortDescription}.
+
+**Your Identity:**
+{request.identity}
+
+**Your Mission:**
+{request.mission}
+
+**Interaction Style:**
+{request.interactionStyle}
+
+**Personality Traits (0-100 scale):**
+- Creativity: {request.traits.get('creativity', 50)}/100 - {'High creative expression' if request.traits.get('creativity', 50) > 70 else 'Moderate creativity' if request.traits.get('creativity', 50) > 30 else 'Practical and direct'}
+- Empathy: {request.traits.get('empathy', 50)}/100 - {'Highly empathetic and understanding' if request.traits.get('empathy', 50) > 70 else 'Moderately caring' if request.traits.get('empathy', 50) > 30 else 'Task-focused'}
+- Assertiveness: {request.traits.get('assertiveness', 50)}/100 - {'Confident and direct' if request.traits.get('assertiveness', 50) > 70 else 'Moderately assertive' if request.traits.get('assertiveness', 50) > 30 else 'Gentle and accommodating'}
+- Verbosity: {request.traits.get('verbosity', 50)}/100 - {'Detailed explanations' if request.traits.get('verbosity', 50) > 70 else 'Balanced responses' if request.traits.get('verbosity', 50) > 30 else 'Concise and brief'}
+- Formality: {request.traits.get('formality', 50)}/100 - {'Professional and formal' if request.traits.get('formality', 50) > 70 else 'Semi-formal' if request.traits.get('formality', 50) > 30 else 'Casual and friendly'}
+- Confidence: {request.traits.get('confidence', 50)}/100 - {'Very confident' if request.traits.get('confidence', 50) > 70 else 'Moderately confident' if request.traits.get('confidence', 50) > 30 else 'Humble and uncertain'}
+- Humor: {request.traits.get('humor', 50)}/100 - {'Witty and playful' if request.traits.get('humor', 50) > 70 else 'Occasional humor' if request.traits.get('humor', 50) > 30 else 'Serious and professional'}
+- Technicality: {request.traits.get('technicality', 50)}/100 - {'Technical and detailed' if request.traits.get('technicality', 50) > 70 else 'Moderately technical' if request.traits.get('technicality', 50) > 30 else 'Simple explanations'}
+- Safety: {request.traits.get('safety', 50)}/100 - {'Very cautious' if request.traits.get('safety', 50) > 70 else 'Moderately careful' if request.traits.get('safety', 50) > 30 else 'Risk-tolerant'}
+
+**Response Guidelines:**
+- Adjust your response length based on verbosity setting
+- Match the formality level requested
+- Include appropriate technical depth
+- Maintain safety boundaries
+- Express personality through your unique traits
+
+Respond as this character consistently throughout the conversation.""",
+        "variables": {
+            "name": request.name,
+            "shortDescription": request.shortDescription,
+            "identity": request.identity,
+            "mission": request.mission,
+            "interactionStyle": request.interactionStyle,
+            **{trait: value for trait, value in request.traits.items()}
+        },
+        "metadata": {
+            "agent_id": agent_id,
+            "version": "1.0",
+            "created": datetime.utcnow().isoformat(),
+            "supports_voice": True,
+            "supports_memory": True
+        }
+    }
+
+    prompt_file = agent_dir / "agent_specific_prompt.json"
+    with open(prompt_file, 'w', encoding='utf-8') as f:
+        json.dump(prompt_data, f, indent=2, ensure_ascii=False)
+    files_created.append(str(prompt_file.relative_to(prompts_dir.parent)))
+
+    # 2. Generate agent_attributes.json
+    attributes_data = {
+        "agent_id": agent_id,
+        "name": request.name,
+        "shortDescription": request.shortDescription,
+        "voice": request.voice,
+        "knowledge": request.knowledge or {"urls": [], "files": []},
+        "characterDescription": request.characterDescription or {},
+        "avatar": request.avatar,
+        "traits": request.traits,
+        "performance_settings": {
+            # RVR mapping based on traits
+            "max_tokens": 80 + (request.traits.get('verbosity', 50) / 100) * 560,
+            "max_iterations": max(1, int(1 + request.traits.get('verbosity', 50) / 100 * 2)),
+            "temperature": request.traits.get('creativity', 50) / 100,
+            "safety_level": request.traits.get('safety', 50) / 100
+        },
+        "created_at": datetime.utcnow().isoformat(),
+        "version": "1.0"
+    }
+
+    attributes_file = agent_dir / "agent_attributes.json"
+    with open(attributes_file, 'w', encoding='utf-8') as f:
+        json.dump(attributes_data, f, indent=2, ensure_ascii=False)
+    files_created.append(str(attributes_file.relative_to(prompts_dir.parent)))
+
+    return files_created
+
 @router.post("/", response_model=AgentResponse)
 async def create_agent(
     request: AgentCreateRequest,
     database = Depends(get_database)
 ):
-    """Create a new agent with the provided configuration"""
+    """
+    Create a new agent with JSON file generation according to architecture map:
+    Form → agent_specific_prompt.json + agent_attributes.json → Database
+    """
     try:
         # Validate and create agent payload
         payload_data = {
@@ -57,7 +161,7 @@ async def create_agent(
             "mission": request.mission,
             "knowledge": request.knowledge or {"urls": [], "files": []},
             "voice": {"elevenlabsVoiceId": request.voice.get("elevenlabsVoiceId", "")},
-            "traits": request.traits or {},
+            "traits": request.traits,
             "avatar": request.avatar
         }
 
@@ -68,6 +172,10 @@ async def create_agent(
 
         # Update performance settings based on traits (RVR mapping)
         agent_config.update_performance_settings()
+
+        # Generate JSON files according to architecture map
+        files_created = generate_agent_json_files(agent_config.id, request)
+        logger.info(f"Generated JSON files for agent {agent_config.id}: {files_created}")
 
         # Initialize LangGraph workflow
         try:
@@ -105,7 +213,8 @@ async def create_agent(
         return AgentResponse(
             success=True,
             agent=agent_model,
-            message=f"Agent '{agent_payload.name}' created successfully"
+            message=f"Agent '{agent_payload.name}' created successfully",
+            files_created=files_created
         )
 
     except Exception as e:
