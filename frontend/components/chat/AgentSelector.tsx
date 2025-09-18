@@ -14,6 +14,7 @@ interface Agent {
     payload: {
       name: string
       shortDescription: string
+      avatar?: string
       voice: {
         elevenlabsVoiceId: string
       }

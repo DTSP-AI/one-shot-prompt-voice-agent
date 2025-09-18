@@ -1,0 +1,85 @@
+services:
+  - type: web
+    name: oneshot-voice-agent-backend
+    env: python
+    buildCommand: pip install --upgrade pip && pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    runtime: python
+    rootDir: backend
+    healthCheckPath: /api/v1/health
+    envVars:
+      # Application Settings
+      - key: PORT
+        value: 10000
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEBUG
+        value: false
+      - key: BACKEND_CORS_ORIGINS
+        value: https://your-frontend-domain.vercel.app
+
+      # LiveKit Configuration (Required)
+      - key: LIVEKIT_URL
+        sync: false
+      - key: LIVEKIT_API_KEY
+        sync: false
+      - key: LIVEKIT_API_SECRET
+        sync: false
+
+      # AI Services (Required)
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: DEEPGRAM_API_KEY
+        sync: false
+      - key: ELEVENLABS_API_KEY
+        sync: false
+
+      # Optional Services
+      - key: MEM0_API_KEY
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+
+      # Memory & Storage
+      - key: MEM0_DB_PATH
+        value: ./data/mem0.db
+      - key: MEM0_COLLECTION
+        value: agents
+      - key: QDRANT_URL
+        value: http://localhost:6333
+      - key: QDRANT_API_KEY
+        value: none
+
+      # Voice Processing
+      - key: STT_PROVIDER
+        value: deepgram
+      - key: TTS_PROVIDER
+        value: elevenlabs
+      - key: ELEVENLABS_VOICE_ID
+        sync: false
+
+      # Backend Configuration
+      - key: ENABLE_REFLECTIONS
+        value: true
+      - key: REFLECTION_INTERVAL_HOURS
+        value: 6
+      - key: STM_WINDOW
+        value: 10
+      - key: ENABLE_VISION
+        value: false
+      - key: ENABLE_MEM0
+        value: true
+
+databases:
+  - name: qdrant
+    databaseName: qdrant
+    user: qdrant
+    plan: starter
+
+  - name: redis
+    databaseName: redis
+    user: redis
+    plan: starter

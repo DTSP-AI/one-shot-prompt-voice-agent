@@ -1,0 +1,25 @@
+{
+  "user_input": "Hello test",
+  "session_id": "test-session-123",
+  "tenant_id": "default",
+  "voice_id": "test-voice",
+  "tts_enabled": false,
+  "model": "gpt-5-nano",
+  "agent_id": "test-agent",
+  "traits": {
+    "name": "TestBot",
+    "shortDescription": "Test assistant",
+    "identity": "I am an AI assistant",
+    "mission": "To help users",
+    "interactionStyle": "Friendly",
+    "creativity": 75,
+    "empathy": 80,
+    "assertiveness": 60,
+    "verbosity": 50,
+    "formality": 40,
+    "confidence": 70,
+    "humor": 35,
+    "technicality": 65,
+    "safety": 90
+  }
+}

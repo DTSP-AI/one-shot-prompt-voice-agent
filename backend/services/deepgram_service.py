@@ -1,9 +1,8 @@
-import asyncio
-import json
 import logging
 from typing import Optional, Dict, Any, Callable, List
 import httpx
-from deepgram import Deepgram, DeepgramClient, PrerecordedOptions, LiveOptions
+from deepgram.client import DeepgramClient
+from deepgram.options import PrerecordedOptions, LiveOptions
 from core.config import settings
 
 logger = logging.getLogger(__name__)

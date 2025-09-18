@@ -27,7 +27,7 @@ class AgentInvokeRequest(BaseModel):
     tts_enabled: bool = Field(default=True, description="Enable text-to-speech")
 
     # Additional optional settings
-    model: Optional[str] = Field(default="gpt-4", description="LLM model to use")
+    model: Optional[str] = Field(default="gpt-5-nano", description="LLM model to use")
     agent_id: Optional[str] = Field(None, description="Optional agent identifier")
 
     @field_validator('session_id')
@@ -120,9 +120,11 @@ async def invoke_agent(request: AgentInvokeRequest):
         }
 
         logger.info(f"Processing agent request for session {request.session_id}")
+        print(f"DEBUG API: About to call agent_node with state keys: {list(agent_state.keys())}")
 
         # Invoke agent node
         result = await agent_node(agent_state)
+        print(f"DEBUG API: agent_node returned: {result}")
 
         # Check for errors
         if result.get("workflow_status") == "error":

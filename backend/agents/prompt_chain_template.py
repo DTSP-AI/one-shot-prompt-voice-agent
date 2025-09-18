@@ -83,7 +83,7 @@ class PromptChainTemplate:
 
         # Create LLM with agent-specific settings
         llm = ChatOpenAI(
-            model="gpt-4",
+            model="gpt-5-nano",
             temperature=performance_settings.get("temperature", 0.7),
             max_tokens=int(performance_settings.get("max_tokens", 640))
         )

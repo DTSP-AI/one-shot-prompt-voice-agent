@@ -15,7 +15,7 @@ langchain-qdrant==0.2.1
 # LiveKit Integration - Latest available versions
 livekit==1.0.13
 livekit-agents==0.10.0
-livekit-server-sdk==0.4.1
+livekit-plugins-langchain
 
 # AI Services
 openai==1.52.2

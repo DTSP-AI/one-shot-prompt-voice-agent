@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     DEBUG: bool = False
 
+    # Database - Target Architecture
+    DATABASE_URL: Optional[str] = None  # PostgreSQL connection string
+    REDIS_URL: Optional[str] = None     # Redis connection string
+
     # Memory & Storage
     MEM0_DB_PATH: str = "./data/mem0.db"
     MEM0_COLLECTION: str = "agents"
@@ -54,13 +58,13 @@ class Settings(BaseSettings):
     REFLECTION_INTERVAL_HOURS: int = 6
     STM_WINDOW: int = 10
     ENABLE_VISION: bool = False
-    ENABLE_MEM0: bool = True
+    ENABLE_MEM0: bool = False
 
     # CORS Configuration
-    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004,http://localhost:3005"
+    BACKEND_CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
 
     class Config:
-        env_file = ".env"
+        env_file = [".env", "../.env"]  # Multiple .env file sources for flexibility
         case_sensitive = True
         extra = "ignore"  # Allow extra fields from .env to be ignored
 

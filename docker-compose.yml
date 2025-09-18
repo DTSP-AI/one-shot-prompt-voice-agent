@@ -1,5 +1,39 @@
 version: '3.8'
 services:
+  # Redis Cache Layer - Target Architecture
+  redis:
+    image: redis:7-alpine
+    container_name: oneshot-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # PostgreSQL Database - Target Architecture
+  postgres:
+    image: postgres:15
+    container_name: oneshot-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: oneshotvoice
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backend/core/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
   # Vector Database
   qdrant:
     image: qdrant/qdrant:v1.12.1
@@ -25,10 +59,14 @@ services:
       - PORT=8000
       - QDRANT_URL=http://qdrant:6333
       - MEM0_DB_PATH=/app/data/mem0.db
+      - REDIS_URL=redis://redis:6379
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/oneshotvoice
     volumes:
       - backend_data:/app/data
       - backend_logs:/app/logs
     depends_on:
+      - redis
+      - postgres
       - qdrant
     env_file:
       - .env
@@ -58,6 +96,8 @@ services:
       retries: 3
 
 volumes:
+  redis_data:
+  postgres_data:
   qdrant_data:
   backend_data:
   backend_logs:

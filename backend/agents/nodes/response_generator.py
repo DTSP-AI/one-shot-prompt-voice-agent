@@ -102,7 +102,7 @@ async def generate_openai_response(
 
         # Prepare request payload
         payload = {
-            "model": "gpt-4o-mini",  # Use cost-effective model
+            "model": "gpt-5-nano",  # Use specified model
             "messages": openai_messages,
             "max_tokens": max_tokens,
             "temperature": temperature,

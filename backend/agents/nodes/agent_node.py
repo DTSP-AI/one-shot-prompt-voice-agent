@@ -11,7 +11,8 @@ from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from memory.memory_manager import MemoryManager
 from agents.prompt_loader import PromptLoader
 from agents.prompt_chain_template import create_prompt_chain_template
-from agents.state import AgentState, update_state
+from ..state import AgentState, update_state
+from core.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -125,7 +126,6 @@ async def agent_node(state: AgentState) -> AgentState:
 
         # Initialize memory manager with session isolation
         memory_manager = MemoryManager(
-            session_id=session_id,
             tenant_id=tenant_id,
             agent_id=state.get("agent_id")
         )
@@ -154,14 +154,17 @@ async def agent_node(state: AgentState) -> AgentState:
         max_tokens = _calculate_max_tokens(traits.get("verbosity", 50))
 
         llm = ChatOpenAI(
-            model=state.get("model", "gpt-4"),
+            model=state.get("model", "gpt-5-nano"),
             temperature=temperature,
-            max_tokens=max_tokens
+            max_tokens=max_tokens,
+            openai_api_key=settings.OPENAI_API_KEY
         )
 
         # Generate response
         logger.debug(f"Generating response with {len(messages)} messages, temp={temperature:.2f}")
+        print(f"DEBUG: About to call LLM with model: {state.get('model', 'gpt-5-nano')}")
         response = await llm.ainvoke(messages)
+        print(f"DEBUG: LLM response content: '{response.content}'")
 
         # Store conversation in memory
         memory_manager.append_human(user_input)
@@ -174,16 +177,17 @@ async def agent_node(state: AgentState) -> AgentState:
 
         updated_state = update_state(
             state,
-            agent_response=response.content,
+            current_message=response.content,
             messages=messages + [response],
             workflow_status=workflow_status,
-            memory_metrics=memory_manager.get_metrics(),
             session_id=session_id,
             tenant_id=tenant_id,
             # Preserve voice settings for voice processor
             voice_id=state.get("voice_id"),
             tts_enabled=state.get("tts_enabled", True)
         )
+        # Add agent_response for API compatibility
+        updated_state["agent_response"] = response.content
 
         logger.info(f"Agent response generated for session {session_id}")
         return updated_state
