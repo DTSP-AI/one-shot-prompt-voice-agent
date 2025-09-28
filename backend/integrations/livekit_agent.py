@@ -12,7 +12,7 @@ from livekit.agents.voice import Agent as VoiceAgent
 from livekit.agents.llm import LLM
 from livekit.agents import vad
 
-from .agent_bridge import AgentBridge
+from .livekit_llm_adapter import create_llm_adapter
 from .voice_pipeline import get_voice_pipeline_components
 from core.config import settings
 
@@ -28,7 +28,7 @@ class OneShotVoiceAgent:
         self.agent_id = agent_config.get("id", "default")
 
         # Create components using existing services
-        self.agent_bridge = AgentBridge(agent_config)
+        self.llm_adapter = create_llm_adapter(agent_config)
         self.voice_components = get_voice_pipeline_components(agent_config)
 
         # Initialize VoiceAgent with basic instructions
@@ -39,7 +39,7 @@ class OneShotVoiceAgent:
             instructions=instructions,  # Required parameter
             vad=None,  # Voice Activity Detection (simplified for MVP)
             stt=self.voice_components["stt"],  # Our Deepgram adapter
-            llm=self.agent_bridge,  # Our LangGraph bridge
+            llm=self.llm_adapter,  # Official LiveKit LLMAdapter
             tts=self.voice_components["tts"],  # Our ElevenLabs adapter
         )
 
@@ -66,10 +66,10 @@ class OneShotVoiceAgent:
 
     async def get_metrics(self) -> Dict[str, Any]:
         """Get agent performance metrics"""
-        bridge_metrics = self.agent_bridge.get_agent_metrics()
+        adapter_metrics = self.llm_adapter.get_agent_metrics()
 
         return {
-            **bridge_metrics,
+            **adapter_metrics,
             "session_active": hasattr(self, 'assistant') and self.assistant is not None,
             "voice_components_ready": self.voice_components is not None
         }
@@ -143,8 +143,9 @@ async def test_voice_agent(agent_config: Dict[str, Any] = None):
 
     # Test basic functionality
     test_message = "Hello Rick, how are you?"
-    response = await voice_agent.agent_bridge.agenerate([
-        {"role": "user", "content": test_message}
+    from langchain_core.messages import HumanMessage
+    response = await voice_agent.llm_adapter.agenerate([
+        HumanMessage(content=test_message)
     ])
 
     logger.info(f"Test response: {response}")

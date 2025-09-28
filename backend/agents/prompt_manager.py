@@ -26,6 +26,12 @@ logger = logging.getLogger(__name__)
 
 class PromptManager:
     BASE_PROMPTS_DIR = os.path.join(os.path.dirname(__file__), "..", "prompts")
+    HUMAN_PROMPT_FILE = os.path.join(BASE_PROMPTS_DIR, "human_prompt.json")
+
+    @classmethod
+    def _load_human_prompt(cls) -> Dict[str, Any]:
+        """Load the universal Human_Prompt system for all agents."""
+        return cls._load_json(cls.HUMAN_PROMPT_FILE)
 
     @classmethod
     def _load_json(cls, filepath: str) -> Dict[str, Any]:
@@ -100,19 +106,40 @@ class PromptManager:
 
     @classmethod
     def build_system_prompt(cls, traits: Dict[str, Any]) -> str:
-        """Builds a system prompt string from agent traits.
+        """Builds a system prompt string from agent traits with universal Human_Prompt integration.
 
         Args:
             traits: Dictionary containing agent traits and attributes
 
         Returns:
-            str: Formatted system prompt string
+            str: Formatted system prompt string with Human_Prompt prepended
 
         Raises:
             ValueError: If traits validation fails
         """
         if not cls.validate_traits(traits):
             raise ValueError("Invalid traits provided")
+
+        # Load universal Human_Prompt
+        human_prompt_data = cls._load_human_prompt()
+        universal_prompt = human_prompt_data.get("universal_human_prompt", {})
+
+        # Determine content mode based on NSFW setting
+        nsfw_enabled = traits.get("nsfw_enabled", False)
+        content_mode = "nsfw_mode" if nsfw_enabled else "safe_mode"
+        content_guidelines = universal_prompt.get("content_guidelines", {}).get(content_mode, {})
+
+        # Build Human_Prompt section
+        human_prompt_parts = [
+            "=== CORE IDENTITY DIRECTIVE ===",
+            universal_prompt.get("core_directive", ""),
+            "",
+            "=== CHARACTER AUTHENTICITY RULES ===",
+            "\n".join(universal_prompt.get("character_authenticity", [])),
+            "",
+            f"=== CONTENT GUIDELINES ({content_mode.upper()}) ===",
+            content_guidelines.get("description", "")
+        ]
 
         # Extract base attributes with safe defaults
         name = traits.get("name", "Assistant")
@@ -121,21 +148,27 @@ class PromptManager:
         mission = traits.get("mission", "")
         interaction = traits.get("interactionStyle", "")
 
-        # Build core prompt
-        prompt_parts = [f"You are {name}, {desc}."]
+        # Build character-specific prompt
+        character_parts = [
+            "",
+            "=== YOUR CHARACTER ===",
+            f"You are {name}, {desc}."
+        ]
 
         # Add optional sections
         if identity:
-            prompt_parts.append(f"Identity: {identity}")
+            character_parts.append(f"Identity: {identity}")
         if mission:
-            prompt_parts.append(f"Mission: {mission}")
+            character_parts.append(f"Mission: {mission}")
         if interaction:
-            prompt_parts.append(f"Interaction Style: {interaction}")
+            character_parts.append(f"Interaction Style: {interaction}")
 
         # Add personality modifiers based on trait values
-        cls._add_personality_modifiers(prompt_parts, traits)
+        cls._add_personality_modifiers(character_parts, traits)
 
-        return "\n".join(prompt_parts)
+        # Combine Human_Prompt + Character-specific prompt
+        all_parts = human_prompt_parts + character_parts
+        return "\n".join(all_parts)
 
     @classmethod
     def load_prompt_variables(cls) -> Dict[str, str]:
@@ -255,8 +288,8 @@ class PromptChain:
         key = f"{tenant_id}:{session_id}"
         if key not in self.memory_managers:
             self.memory_managers[key] = MemoryManager(
-                tenant_id=tenant_id,
-                agent_id=self.agent_id,
+                tenant_id,  # Legacy pattern: positional arguments
+                self.agent_id,
             )
         return self.memory_managers[key]
 

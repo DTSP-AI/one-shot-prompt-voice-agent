@@ -25,7 +25,7 @@ class Voice(BaseModel):
     elevenlabsVoiceId: Optional[str] = None
 
 class Traits(BaseModel):
-    """EXACT blueprint specification - lines 87-97"""
+    """EXACT blueprint specification - lines 87-97 + NSFW toggle"""
     # All traits are 0-100 continuous sliders as per specification
     creativity: int = Field(default=50, ge=0, le=100)
     empathy: int = Field(default=50, ge=0, le=100)
@@ -37,6 +37,9 @@ class Traits(BaseModel):
     humor: int = Field(default=30, ge=0, le=100)
     technicality: int = Field(default=50, ge=0, le=100)
     safety: int = Field(default=70, ge=0, le=100)
+
+    # NSFW toggle for adult content filtering (critical for XAI integration)
+    nsfw_enabled: bool = Field(default=False, description="Enable adult content and mature themes")
 
     def to_normalized(self) -> Dict[str, float]:
         """Convert 0-100 traits to 0-1 normalized values for AI processing"""

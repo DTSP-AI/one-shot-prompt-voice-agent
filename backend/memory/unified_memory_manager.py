@@ -384,7 +384,7 @@ class UnifiedMemoryManager:
             return []
 
     def _apply_composite_scoring(self, memories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Apply composite scoring: semantic + recency + reinforcement"""
+        """Apply GenerativeAgent composite scoring: semantic + recency + importance + reinforcement"""
         if not memories:
             return []
 
@@ -393,10 +393,10 @@ class UnifiedMemoryManager:
 
         for memory in memories:
             try:
-                # Semantic score (from Mem0)
+                # Semantic score (from Mem0 - relevance to query)
                 semantic_score = float(memory.get('score', 0.0))
 
-                # Recency score
+                # Recency score (time decay)
                 created_at = memory.get('created_at', now.isoformat())
                 if isinstance(created_at, str):
                     created_time = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
@@ -407,17 +407,22 @@ class UnifiedMemoryManager:
                 decay_lambda = 0.693147 / self.settings.decay_halflife_hours
                 recency_score = math.exp(-decay_lambda * hours_ago)
 
+                # Importance score (GenerativeAgent pattern - emotional/mission significance)
+                importance_score = self._calculate_importance_score(memory)
+
                 # Reinforcement score (based on feedback history)
                 reinforcement_score = memory.get('reinforcement_score', 0.0)
 
-                # Composite score
+                # Enhanced composite score with importance weighting
                 composite_score = (
                     self.settings.alpha_semantic * semantic_score +
                     self.settings.alpha_recency * recency_score +
-                    self.settings.alpha_reinforcement * reinforcement_score
+                    0.15 * importance_score +  # 15% weight for importance (GenerativeAgent pattern)
+                    (self.settings.alpha_reinforcement - 0.05) * reinforcement_score  # Slightly reduce reinforcement weight
                 )
 
                 memory['composite_score'] = composite_score
+                memory['importance_score'] = importance_score  # Store for debugging
                 scored_memories.append(memory)
 
             except Exception as e:
@@ -427,6 +432,69 @@ class UnifiedMemoryManager:
         # Sort by composite score
         scored_memories.sort(key=lambda x: x.get('composite_score', 0), reverse=True)
         return scored_memories[:self.settings.k]
+
+    def _calculate_importance_score(self, memory: Dict[str, Any]) -> float:
+        """Calculate importance score based on GenerativeAgent pattern.
+
+        Importance is determined by:
+        - Emotional content (mentions of feelings, reactions)
+        - Mission relevance (alignment with agent identity)
+        - Social significance (relationships, conflicts)
+        - Unique/novel information
+        """
+        text = memory.get('text', '').lower()
+
+        importance_score = 0.0
+
+        # Emotional content indicators (high importance)
+        emotional_keywords = [
+            'feel', 'emotion', 'happy', 'sad', 'angry', 'excited', 'frustrated',
+            'love', 'hate', 'fear', 'worry', 'concern', 'joy', 'disappointed',
+            'surprised', 'confused', 'grateful', 'proud', 'embarrassed'
+        ]
+        emotional_matches = sum(1 for keyword in emotional_keywords if keyword in text)
+        importance_score += emotional_matches * 0.15
+
+        # Mission/goal relevance (if agent has defined mission)
+        if self.agent_identity and self.agent_identity.mission:
+            mission_keywords = self.agent_identity.mission.lower().split()
+            mission_matches = sum(1 for keyword in mission_keywords if keyword in text and len(keyword) > 3)
+            importance_score += mission_matches * 0.2
+
+        # Social significance indicators
+        social_keywords = [
+            'relationship', 'friend', 'family', 'conflict', 'agreement', 'trust',
+            'betrayal', 'help', 'support', 'collaboration', 'team', 'partner'
+        ]
+        social_matches = sum(1 for keyword in social_keywords if keyword in text)
+        importance_score += social_matches * 0.1
+
+        # Novel/unique information (length and complexity as proxy)
+        text_length = len(text)
+        if text_length > 100:  # Longer memories often contain more important details
+            importance_score += 0.1
+        if text_length > 300:  # Very detailed memories
+            importance_score += 0.15
+
+        # Decision-making and planning indicators
+        decision_keywords = [
+            'decide', 'choice', 'plan', 'strategy', 'goal', 'objective',
+            'solution', 'problem', 'challenge', 'opportunity', 'risk'
+        ]
+        decision_matches = sum(1 for keyword in decision_keywords if keyword in text)
+        importance_score += decision_matches * 0.12
+
+        # Success/failure indicators (high emotional impact)
+        outcome_keywords = [
+            'success', 'fail', 'win', 'lose', 'achieve', 'accomplish',
+            'mistake', 'error', 'breakthrough', 'discovery', 'insight'
+        ]
+        outcome_matches = sum(1 for keyword in outcome_keywords if keyword in text)
+        importance_score += outcome_matches * 0.18
+
+        # Normalize to 0-1 range and apply sigmoid for better distribution
+        importance_score = min(importance_score, 1.0)
+        return importance_score
 
     def _apply_identity_filter(self, memories: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """Filter memories through agent identity lens"""
