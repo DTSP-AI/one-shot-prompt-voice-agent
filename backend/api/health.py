@@ -95,10 +95,10 @@ async def health_check():
 
     # Perform service checks in parallel
     service_checks = {
-        "openai": check_openai_health(),
-        "deepgram": check_deepgram_health(),
-        "elevenlabs": check_elevenlabs_health(),
-        "livekit": check_livekit_health()
+        "openai": check_openai_health,
+        "deepgram": check_deepgram_health,
+        "elevenlabs": check_elevenlabs_health,
+        "livekit": check_livekit_health
     }
 
     service_results = {}
@@ -135,4 +135,4 @@ async def health_check():
 @router.get("/health")
 async def simple_health_check():
     """Simple health check for container health checks"""
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    return {"status": "ok", "timestamp": datetime.now(datetime.UTC).isoformat()}

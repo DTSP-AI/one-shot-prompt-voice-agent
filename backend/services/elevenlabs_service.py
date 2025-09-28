@@ -256,3 +256,27 @@ class ElevenLabsService:
     def is_configured(self) -> bool:
         """Check if ElevenLabs service is properly configured"""
         return bool(self.api_key)
+
+    def clean_text_for_tts(self, text: str) -> str:
+        """Clean text for better TTS quality"""
+        import re
+        cleaned = text.replace("**", "").replace("*", "")
+        cleaned = re.sub(r'```[\s\S]*?```', '[code block]', cleaned)
+        cleaned = re.sub(r'`[^`]+`', '[code]', cleaned)
+        cleaned = re.sub(r'\n+', '. ', cleaned)
+        cleaned = re.sub(r'\s+', ' ', cleaned)
+        max_length = 2500
+        if len(cleaned) > max_length:
+            cleaned = cleaned[:max_length-3] + "..."
+        return cleaned.strip()
+
+    def get_voice_settings_from_traits(self, traits: Dict[str, Any]) -> Dict[str, Any]:
+        """Get voice settings based on agent traits"""
+        settings = {"stability": 0.5, "similarity_boost": 0.75, "style": 0.0, "use_speaker_boost": True}
+        confidence = traits.get("confidence", 50) / 100.0
+        settings["stability"] = max(0.0, min(1.0, 0.3 + confidence * 0.4))
+        assertiveness = traits.get("assertiveness", 50) / 100.0
+        settings["similarity_boost"] = max(0.0, min(1.0, 0.6 + assertiveness * 0.3))
+        creativity = traits.get("creativity", 50) / 100.0
+        settings["style"] = max(0.0, min(1.0, creativity * 0.3))
+        return settings

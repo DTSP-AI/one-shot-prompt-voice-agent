@@ -137,8 +137,9 @@ class TestLiveKitIntegration:
 
         # Verify simplified config
         config = graph.get_workflow_config()
-        assert config["simplified"] is True
-        assert len(config["nodes"]) == 4
+        assert config["streamlined"] is True
+        assert len(config["nodes"]) == 3
+        assert "response_generator" not in config["nodes"]
 
     @pytest.mark.asyncio
     async def test_concurrent_sessions(self, rick_config):

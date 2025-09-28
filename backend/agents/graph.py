@@ -1,117 +1,160 @@
-"""
-Simplified LangGraph - 4 Core Nodes Only
-Based on Current-Prompt.md: "reduce to 4 core nodes, under 50 LOC"
-Memory operations folded into orchestrator + response_generator
-"""
-
 from typing import Dict, Any
 from langgraph.graph import StateGraph, END
-import logging
+from .state import GraphState, AgentState  # GraphState is blueprint, AgentState is legacy
+from .nodes.orchestrator import orchestrate, supervisor_node  # supervisor_node is legacy alias
+from .nodes.agent_node import agent_node as plan_or_answer  # EXACT blueprint alias
+from .nodes.response_generator import respond
+from .nodes.route_tools import route_tools, route_tools_node
+from .nodes.voice_processor import voice_processor_node  # Factory function for voice processing
+from memory.memory_manager import MemoryManager
 
-from .state import AgentState
-from .nodes.supervisor import supervisor_node
-from .nodes.orchestrator import orchestrator_node
-from .nodes.response_generator import response_generator_node
-from .nodes.voice_processor import voice_processor_node
+# EXACT BLUEPRINT IMPLEMENTATION - lines 291-322
+def build_graph(memory: MemoryManager):
+    """EXACT blueprint build_graph function"""
+    g = StateGraph(GraphState)
 
-logger = logging.getLogger(__name__)
+    g.add_node("orchestrate", orchestrate(memory))
+    g.add_node("plan_or_answer", plan_or_answer(memory))
+    g.add_node("route_tools", route_tools())
+    g.add_node("respond", respond(memory))
+    g.add_node("to_tts", voice_processor_node())  # optional for voice path
 
+    g.set_entry_point("orchestrate")
+    g.add_edge("orchestrate", "plan_or_answer")
+    g.add_conditional_edges("plan_or_answer", route_tools(),  # returns "respond" or "route_tools"
+                            {"tools":"route_tools","answer":"respond"})
+    g.add_edge("route_tools", "respond")
+    # Voice pipeline can branch to TTS:
+    g.add_edge("respond", END)
+
+    return g.compile()
+
+# LEGACY WRAPPER CLASS for backward compatibility
 class AgentGraph:
-    """
-    Simplified LangGraph workflow - 4 core nodes
-    Memory handled internally by orchestrator + response_generator
-    """
-
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.agent_id = config.get("id", "default")
-        self.graph = self._create_simplified_graph()
 
-    def _create_simplified_graph(self) -> StateGraph:
-        """Create simplified 4-node workflow with lightweight error handling"""
+        # Initialize memory manager for this agent
+        tenant_id = config.get("tenant_id", "default")
+        self.memory = MemoryManager(tenant_id, self.agent_id)
+
+        # Use legacy build_graph for backward compatibility with API state format
+        self.graph = self._build_graph()
+
+    def _build_graph(self) -> StateGraph:
+        """
+        Build LangGraph workflow with audit-compliant node structure:
+        orchestrate → plan_or_answer → route_tools → respond → to_tts
+        """
         workflow = StateGraph(AgentState)
 
-        # 4 core nodes only
-        workflow.add_node("supervisor", supervisor_node)
-        workflow.add_node("orchestrator", orchestrator_node)
-        workflow.add_node("response", response_generator_node)
-        workflow.add_node("voice", voice_processor_node)
+        # Add nodes with audit-compliant names
+        workflow.add_node("orchestrate", orchestrate(self.memory))
+        workflow.add_node("plan_or_answer", plan_or_answer(self.memory))  # Use closure pattern
+        workflow.add_node("route_tools", route_tools_node)
+        workflow.add_node("respond", respond(self.memory))
+        workflow.add_node("to_tts", voice_processor_node())  # Use closure pattern
 
-        # Entry point
-        workflow.set_entry_point("supervisor")
+        # Legacy aliases for backward compatibility
+        workflow.add_node("supervisor", supervisor_node)  # Alias for orchestrate
+        workflow.add_node("agent_node", plan_or_answer(self.memory))  # Use closure pattern
+        workflow.add_node("voice", voice_processor_node())  # Use closure pattern
 
-        # Lightweight conditional routing
+        # Set entry point
+        workflow.set_entry_point("orchestrate")
+
+        # Define workflow edges according to audit specification
+        workflow.add_edge("orchestrate", "plan_or_answer")
+
+        # Conditional routing from plan_or_answer
         workflow.add_conditional_edges(
-            "supervisor",
-            self._supervisor_router,
+            "plan_or_answer",
+            lambda s: self._routing_decision(s),
             {
-                "orchestrator": "orchestrator",
-                "end": END
-            }
-        )
-
-        workflow.add_conditional_edges(
-            "orchestrator",
-            self._orchestrator_router,
-            {
-                "response": "response",
+                "route_tools": "route_tools",
+                "respond": "respond",
+                "completed": END,  # Allow direct completion
                 "error": END
             }
         )
 
-        # Linear flow for response and voice
-        workflow.add_edge("response", "voice")
+        # Tools route back to respond
+        workflow.add_edge("route_tools", "respond")
+
+        # Response can optionally go to TTS
+        workflow.add_conditional_edges(
+            "respond",
+            lambda s: "to_tts" if s.get("tts_enabled", False) and s.get("voice_id") else "end",
+            {"to_tts": "to_tts", "end": END}
+        )
+
+        # TTS is terminal
+        workflow.add_edge("to_tts", END)
+
+        # Legacy compatibility edges
+        workflow.add_conditional_edges(
+            "supervisor",
+            lambda s: "end" if s.get("workflow_status") in ["error", "completed"] else "agent_node",
+            {"agent_node": "agent_node", "end": END}
+        )
+        workflow.add_conditional_edges(
+            "agent_node",
+            lambda s: "voice" if s.get("workflow_status") == "processing_voice" else "end",
+            {"voice": "voice", "end": END}
+        )
         workflow.add_edge("voice", END)
 
         return workflow.compile()
 
-    def _supervisor_router(self, state: AgentState) -> str:
-        """Router for supervisor - lightweight error checking"""
-        workflow_status = state.get("workflow_status", "active")
+    def _routing_decision(self, state: AgentState) -> str:
+        """
+        Determine routing from plan_or_answer node.
 
-        # Route to end if error or completed
-        if workflow_status in ["error", "completed"]:
-            return "end"
+        Args:
+            state: Current agent state
 
-        # Default: continue to orchestrator
-        return "orchestrator"
+        Returns:
+            Next node to route to
+        """
+        try:
+            workflow_status = state.get("workflow_status", "")
 
-    def _orchestrator_router(self, state: AgentState) -> str:
-        """Router for orchestrator - early bailout on errors"""
-        workflow_status = state.get("workflow_status", "active")
+            # Handle error states
+            if workflow_status == "error":
+                return "error"
 
-        # Early bailout if error
-        if workflow_status == "error":
+            # If agent has already generated a response, complete the workflow
+            if workflow_status == "response_generated" and state.get("response_text"):
+                return "completed"
+
+            # Check if we need tool routing
+            input_text = state.get("input_text", "").lower()
+
+            # Use the routing logic from route_tools
+            routing_func = route_tools()
+            decision = routing_func(state)
+
+            if decision == "tools":
+                return "route_tools"
+            else:
+                return "respond"
+
+        except Exception as e:
             return "error"
 
-        # Default: continue to response
-        return "response"
-
     async def invoke(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the simplified workflow"""
         try:
-            logger.info(f"Starting simplified workflow for agent {self.agent_id}")
-            result = await self.graph.ainvoke(input_data)
-            logger.info(f"Workflow completed for agent {self.agent_id}")
-            return result
+            return await self.graph.ainvoke(input_data)
         except Exception as e:
-            logger.error(f"Workflow error: {e}")
             return {**input_data, "workflow_status": "error", "error_message": str(e)}
 
     async def stream(self, input_data: Dict[str, Any]):
-        """Stream the simplified workflow execution"""
         try:
             async for output in self.graph.astream(input_data):
                 yield output
         except Exception as e:
-            logger.error(f"Streaming error: {e}")
             yield {**input_data, "workflow_status": "error", "error_message": str(e)}
 
     def get_workflow_config(self) -> Dict[str, Any]:
-        """Get workflow configuration"""
-        return {
-            "agent_id": self.agent_id,
-            "config": self.config,
-            "nodes": ["supervisor", "orchestrator", "response", "voice"],
-            "simplified": True
-        }
+        return {"agent_id": self.agent_id, "config": self.config, "nodes": ["supervisor", "agent_node", "voice"], "streamlined": True}

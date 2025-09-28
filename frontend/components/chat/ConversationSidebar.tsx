@@ -60,37 +60,13 @@ export function ConversationSidebar({
     try {
       setLoading(true)
       // TODO: Replace with actual API call when conversations endpoint is implemented
-      // const response = await api.get<{conversations: Conversation[]}>(`/api/v1/conversations?agentId=${agentId}`)
+      const response = await api.get<{success: boolean, conversations: Conversation[]}>(`/api/v1/agents/${agentId}/conversations`)
 
-      // Mock data for now
-      const mockConversations: Conversation[] = [
-        {
-          id: '1',
-          agentId: agentId,
-          title: 'Scientific Theories Discussion',
-          lastMessage: 'The multiverse theory is actually quite simple when you understand...',
-          updatedAt: new Date().toISOString(),
-          messageCount: 15
-        },
-        {
-          id: '2',
-          agentId: agentId,
-          title: 'Interdimensional Travel',
-          lastMessage: 'Listen Morty, portal gun technology requires precise calculations...',
-          updatedAt: new Date(Date.now() - 3600000).toISOString(),
-          messageCount: 8
-        },
-        {
-          id: '3',
-          agentId: agentId,
-          title: 'AI Development Chat',
-          lastMessage: 'The neural networks in my lab are far superior to...',
-          updatedAt: new Date(Date.now() - 86400000).toISOString(),
-          messageCount: 22
-        }
-      ]
-
-      setConversations(mockConversations)
+      if (response.success) {
+        setConversations(response.conversations)
+      } else {
+        setConversations([])
+      }
     } catch (error) {
       console.error('Failed to load conversations:', error)
     } finally {

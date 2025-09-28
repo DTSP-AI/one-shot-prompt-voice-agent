@@ -2,7 +2,10 @@ import logging
 from typing import Optional, Dict, Any, Callable, List
 import httpx
 from deepgram.client import DeepgramClient
-from deepgram.options import PrerecordedOptions, LiveOptions
+try:
+    from deepgram.options import PrerecordedOptions, LiveOptions
+except ImportError:
+    from deepgram import PrerecordedOptions, LiveOptions
 from core.config import settings
 
 logger = logging.getLogger(__name__)

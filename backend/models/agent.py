@@ -15,14 +15,17 @@ class CharacterDescription(BaseModel):
     identity: Optional[str] = None
     interactionStyle: Optional[str] = None
 
-class KnowledgeBase(BaseModel):
+class Knowledge(BaseModel):
+    """EXACT blueprint specification - lines 84-85"""
     urls: List[str] = Field(default_factory=list)
-    files: List[str] = Field(default_factory=list)
+    files: List[str] = Field(default_factory=list)   # backend IDs for uploaded blobs
 
-class VoiceSettings(BaseModel):
-    elevenlabsVoiceId: str
+class Voice(BaseModel):
+    """EXACT blueprint specification - lines 99-100"""
+    elevenlabsVoiceId: Optional[str] = None
 
-class AgentTraits(BaseModel):
+class Traits(BaseModel):
+    """EXACT blueprint specification - lines 87-97"""
     # All traits are 0-100 continuous sliders as per specification
     creativity: int = Field(default=50, ge=0, le=100)
     empathy: int = Field(default=50, ge=0, le=100)
@@ -48,9 +51,9 @@ class AgentPayload(BaseModel):
     shortDescription: str = Field(..., min_length=4)
     characterDescription: CharacterDescription = Field(default_factory=CharacterDescription)
     mission: Optional[str] = None
-    knowledge: KnowledgeBase = Field(default_factory=KnowledgeBase)
-    voice: VoiceSettings
-    traits: AgentTraits = Field(default_factory=AgentTraits)
+    knowledge: Knowledge = Field(default_factory=Knowledge)
+    voice: Voice = Field(default_factory=Voice)
+    traits: Traits = Field(default_factory=Traits)
     avatar: Optional[str] = None  # Path to avatar image
 
     @validator('name')
@@ -64,6 +67,11 @@ class AgentPayload(BaseModel):
         if len(v.strip()) < 4:
             raise ValueError('Short description must be at least 4 characters')
         return v.strip()
+
+    # EXACT BLUEPRINT SPECIFICATION - lines 113-114
+    def rvr(self) -> float:
+        """Return verbosity-to-performance ratio for RVR-driven parameters"""
+        return self.traits.verbosity / 100.0
 
 class AgentConfig(BaseModel):
     """Internal agent configuration for system use"""

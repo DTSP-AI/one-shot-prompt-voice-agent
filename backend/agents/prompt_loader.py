@@ -1,221 +1,101 @@
-"""
-Prompt Loader for OneShotVoiceAgent
-Provides consistent loading and validation of agent prompts
-"""
-
+# agents/prompt_loader.py
 import json
-import logging
-from pathlib import Path
-from typing import Dict, Any, Set
-from core.config import settings
+import pathlib
+from models.agent import AgentPayload
 
-logger = logging.getLogger(__name__)
+PROMPT_PATH = pathlib.Path(__file__).parent.parent / "prompts" / "agent_specific_prompt.json"
 
-class PromptLoader:
+def load_agent_prompt(payload: AgentPayload) -> str:
     """
-    Centralized prompt loading with validation and trait matching
+    Load and format agent-specific system prompt from JSON template.
+
+    Args:
+        payload: AgentPayload containing agent configuration
+
+    Returns:
+        Formatted system prompt string ready for LLM
     """
+    try:
+        schema = json.loads(PROMPT_PATH.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ValueError(f"Prompt template not found at {PROMPT_PATH}")
+    except json.JSONDecodeError as e:
+        raise ValueError(f"Invalid JSON in prompt template: {e}")
 
-    _prompt_cache: Dict[str, Any] = {}
-    _required_variables: Set[str] = set()
+    # Extract variables from payload
+    traits_json = payload.traits.model_dump()
+    character_desc = payload.characterDescription
 
-    @classmethod
-    def load_system_prompt(cls) -> str:
-        """Load the main system prompt template"""
-        try:
-            prompt_data = cls._load_prompt_data()
-            return prompt_data["system_prompt"]
-        except Exception as e:
-            logger.error(f"Failed to load system prompt: {e}")
-            # Fallback prompt
-            return ("You are {name}, {shortDescription}. "
-                   "Respond according to your personality traits and mission.")
+    # Format the system prompt with agent-specific variables
+    try:
+        prompt = schema["system_prompt"].format(
+            name=payload.name,
+            shortDescription=payload.shortDescription,
+            identity=character_desc.identity or "",
+            mission=payload.mission or "",
+            interactionStyle=character_desc.interactionStyle or "",
+            traits_json=json.dumps(traits_json),
+            # Individual traits for direct access
+            creativity=traits_json.get("creativity", 50),
+            empathy=traits_json.get("empathy", 50),
+            assertiveness=traits_json.get("assertiveness", 50),
+            verbosity=traits_json.get("verbosity", 50),
+            formality=traits_json.get("formality", 50),
+            confidence=traits_json.get("confidence", 50),
+            humor=traits_json.get("humor", 50),
+            technicality=traits_json.get("technicality", 50),
+            safety=traits_json.get("safety", 50)
+        )
+        return prompt
+    except KeyError as e:
+        raise ValueError(f"Missing placeholder in prompt template: {e}")
 
-    @classmethod
-    def load_prompt_variables(cls) -> Dict[str, str]:
-        """Load expected prompt variables and their types"""
-        try:
-            prompt_data = cls._load_prompt_data()
-            return prompt_data.get("variables", {})
-        except Exception as e:
-            logger.error(f"Failed to load prompt variables: {e}")
-            return {}
+def load_prompt_variables() -> dict:
+    """
+    Load expected prompt variables from template.
 
-    @classmethod
-    def validate_traits(cls, traits: Dict[str, Any]) -> bool:
-        """
-        Validate that provided traits match required prompt variables
-        Raises ValueError if validation fails
-        """
-        required_vars = cls.load_prompt_variables()
-        cls._required_variables = set(required_vars.keys())
+    Returns:
+        Dictionary of variable names and their expected types
+    """
+    try:
+        schema = json.loads(PROMPT_PATH.read_text(encoding="utf-8"))
+        return schema.get("variables", {})
+    except Exception:
+        return {}
 
-        # Check for missing variables
-        missing = cls._required_variables - set(traits.keys())
-        if missing:
-            raise ValueError(f"Missing required trait variables: {missing}")
+def get_prompt_metadata() -> dict:
+    """
+    Get prompt template metadata.
 
-        # Validate numeric traits are within 0-100 range
-        numeric_traits = ["creativity", "empathy", "assertiveness", "verbosity",
-                         "formality", "confidence", "humor", "technicality", "safety"]
+    Returns:
+        Metadata dictionary from template
+    """
+    try:
+        schema = json.loads(PROMPT_PATH.read_text(encoding="utf-8"))
+        return schema.get("metadata", {})
+    except Exception:
+        return {}
 
-        for trait in numeric_traits:
-            if trait in traits:
-                value = traits[trait]
-                if not isinstance(value, (int, float)) or not (0 <= value <= 100):
-                    raise ValueError(f"Trait '{trait}' must be a number between 0-100, got: {value}")
+def validate_agent_payload(payload: AgentPayload) -> bool:
+    """
+    Validate that AgentPayload contains all required fields for prompt generation.
 
-        # Validate string fields are non-empty
-        string_traits = ["name", "shortDescription", "identity", "mission", "interactionStyle"]
-        for trait in string_traits:
-            if trait in traits and not isinstance(traits[trait], str):
-                raise ValueError(f"Trait '{trait}' must be a string, got: {type(traits[trait])}")
+    Args:
+        payload: AgentPayload to validate
 
-        logger.debug(f"Traits validation passed for {len(traits)} variables")
-        return True
+    Returns:
+        True if valid, raises ValueError if invalid
+    """
+    required_fields = ["name", "shortDescription"]
 
-    @classmethod
-    def build_prompt(cls, traits: Dict[str, Any]) -> str:
-        """
-        Build the complete system prompt with trait substitution
-        Validates traits before building
-        """
-        # Validate traits first
-        cls.validate_traits(traits)
+    for field in required_fields:
+        if not getattr(payload, field, None):
+            raise ValueError(f"Required field '{field}' is missing or empty")
 
-        # Load template
-        template = cls.load_system_prompt()
+    # Validate traits are in 0-100 range
+    traits = payload.traits.model_dump()
+    for trait_name, value in traits.items():
+        if not isinstance(value, int) or not (0 <= value <= 100):
+            raise ValueError(f"Trait '{trait_name}' must be an integer between 0-100, got {value}")
 
-        try:
-            # Format template with traits
-            formatted_prompt = template.format(**traits)
-            logger.debug(f"Built prompt for agent '{traits.get('name', 'Unknown')}'")
-            return formatted_prompt
-
-        except KeyError as e:
-            missing_var = str(e).strip("'")
-            raise ValueError(f"Template requires variable '{missing_var}' not found in traits")
-        except Exception as e:
-            logger.error(f"Failed to build prompt: {e}")
-            raise ValueError(f"Prompt formatting failed: {e}")
-
-    @classmethod
-    def get_metadata(cls) -> Dict[str, Any]:
-        """Get prompt metadata"""
-        try:
-            prompt_data = cls._load_prompt_data()
-            return prompt_data.get("metadata", {})
-        except Exception as e:
-            logger.error(f"Failed to load prompt metadata: {e}")
-            return {}
-
-    @classmethod
-    def load_agent_prompt_data(cls, agent_id: str) -> Dict[str, Any]:
-        """
-        Load agent-specific prompt data according to architecture map:
-        backend/prompts/{agent_id}/agent_specific_prompt.json
-        """
-        cache_key = f"agent_prompt_{agent_id}"
-
-        if cache_key in cls._prompt_cache:
-            return cls._prompt_cache[cache_key]
-
-        # Find agent-specific prompt file
-        prompt_path = Path(__file__).parent.parent / "prompts" / agent_id / "agent_specific_prompt.json"
-
-        if not prompt_path.exists():
-            # Fallback to default template
-            logger.warning(f"Agent-specific prompt not found: {prompt_path}, using default")
-            return cls._load_default_prompt_data()
-
-        try:
-            with open(prompt_path, encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Validate structure
-            if "system_prompt" not in data:
-                raise ValueError("Prompt file missing 'system_prompt' field")
-
-            # Cache the data
-            cls._prompt_cache[cache_key] = data
-            logger.info(f"Loaded agent prompt template from {prompt_path}")
-
-            return data
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in agent prompt file: {e}")
-        except Exception as e:
-            logger.error(f"Failed to load agent prompt file: {e}")
-            return cls._load_default_prompt_data()
-
-    @classmethod
-    def load_agent_attributes(cls, agent_id: str) -> Dict[str, Any]:
-        """
-        Load agent attributes according to architecture map:
-        backend/prompts/{agent_id}/agent_attributes.json
-        """
-        attributes_path = Path(__file__).parent.parent / "prompts" / agent_id / "agent_attributes.json"
-
-        if not attributes_path.exists():
-            raise FileNotFoundError(f"Agent attributes not found: {attributes_path}")
-
-        try:
-            with open(attributes_path, encoding="utf-8") as f:
-                return json.load(f)
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in agent attributes file: {e}")
-        except Exception as e:
-            raise ValueError(f"Failed to load agent attributes file: {e}")
-
-    @classmethod
-    def _load_default_prompt_data(cls) -> Dict[str, Any]:
-        """Load default prompt template as fallback"""
-        cache_key = "default_prompt"
-
-        if cache_key in cls._prompt_cache:
-            return cls._prompt_cache[cache_key]
-
-        # Find default prompt file
-        prompt_path = Path(__file__).parent.parent / "prompts" / "agent_specific_prompt.json"
-
-        if not prompt_path.exists():
-            raise FileNotFoundError(f"Default prompt file not found: {prompt_path}")
-
-        try:
-            with open(prompt_path, encoding="utf-8") as f:
-                data = json.load(f)
-
-            # Validate structure
-            if "system_prompt" not in data:
-                raise ValueError("Prompt file missing 'system_prompt' field")
-            if "variables" not in data:
-                raise ValueError("Prompt file missing 'variables' field")
-
-            # Cache the data
-            cls._prompt_cache[cache_key] = data
-            logger.info(f"Loaded default prompt template from {prompt_path}")
-
-            return data
-
-        except json.JSONDecodeError as e:
-            raise ValueError(f"Invalid JSON in prompt file: {e}")
-        except Exception as e:
-            raise ValueError(f"Failed to load prompt file: {e}")
-
-    @classmethod
-    def _load_prompt_data(cls) -> Dict[str, Any]:
-        """Legacy method - loads default prompt data"""
-        return cls._load_default_prompt_data()
-
-    @classmethod
-    def clear_cache(cls):
-        """Clear prompt cache (useful for testing)"""
-        cls._prompt_cache.clear()
-        cls._required_variables.clear()
-
-    @classmethod
-    def reload_prompt(cls):
-        """Force reload of prompt from file"""
-        cls.clear_cache()
-        return cls._load_prompt_data()
+    return True

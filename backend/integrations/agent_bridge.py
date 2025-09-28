@@ -9,8 +9,7 @@ from typing import List, Dict, Any, Optional
 from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
 from langchain_core.language_models.llms import LLM
 
-from agents.prompt_chain_template import create_prompt_chain_template
-from agents.prompt_loader import PromptLoader
+from agents.prompt_manager import PromptManager, PromptChain
 from memory.memory_manager import MemoryManager
 from core.config import settings
 
@@ -48,14 +47,11 @@ class AgentBridge(LLM):
         """Initialize PromptChainTemplate - same logic as agent_node.py"""
         try:
             # Load agent attributes (same as agent_node.py)
-            agent_attributes = PromptLoader.load_agent_attributes(self.agent_id)
+            agent_data = PromptManager.load_prompt_data(self.agent_id)
+            agent_attributes = agent_data.get("attributes", {})
 
-            # Create prompt chain template (same as agent_node.py)
-            prompt_chain = create_prompt_chain_template(
-                agent_id=self.agent_id,
-                tenant_id=self.tenant_id,
-                agent_attributes=agent_attributes
-            )
+            # Create prompt chain using PromptChain class
+            prompt_chain = PromptChain(agent_id=self.agent_id)
             object.__setattr__(self, 'prompt_chain', prompt_chain)
             logger.info(f"Initialized prompt chain for agent {self.agent_id}")
 

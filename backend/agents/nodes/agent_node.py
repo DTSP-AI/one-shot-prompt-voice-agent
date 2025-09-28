@@ -1,211 +1,176 @@
 """
-Centralized Agent Node for OneShotVoiceAgent
-Implements the core agent logic using MemoryManager + PromptLoader
+Agent Node - Consolidated LLM response generation with Memory + Traits
+Implements the migration plan: response_generator functionality moved here as utility
 """
 
 import logging
-from typing import Dict, Any
-from langchain_openai import ChatOpenAI
+from typing import Dict, Any, List
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
-from memory.memory_manager import MemoryManager
-from agents.prompt_loader import PromptLoader
-from agents.prompt_chain_template import create_prompt_chain_template
-from ..state import AgentState, update_state
+from ..state import AgentState, update_state, add_message_to_state
+from memory.unified_memory_manager import create_memory_manager
+from agents.prompt_loader import load_agent_prompt
 from core.config import settings
 
 logger = logging.getLogger(__name__)
 
-async def agent_node_with_prompt_chain(state: AgentState) -> AgentState:
+async def generate_agent_response(state: Dict[str, Any]) -> str:
     """
-    Agent processing using PromptChainTemplate pattern according to architecture map:
-    JSON-defined system prompt + RunnableWithMessageHistory + Mem0 memory
-    """
-    try:
-        # Extract required inputs
-        session_id = state.get("session_id")
-        tenant_id = state.get("tenant_id", "default")
-        user_input = state.get("user_input")
-        agent_id = state.get("agent_id")
-
-        # Input validation
-        if not session_id:
-            raise ValueError("session_id is required")
-        if not user_input:
-            raise ValueError("user_input is required")
-        if not agent_id:
-            raise ValueError("agent_id is required for PromptChainTemplate")
-
-        logger.debug(f"Processing agent request using PromptChainTemplate for agent {agent_id}")
-
-        # Create PromptChainTemplate for this agent
-        prompt_chain = create_prompt_chain_template(agent_id)
-
-        # Create runnable chain with memory integration
-        runnable_chain = prompt_chain.create_runnable_chain(session_id, tenant_id)
-
-        # Execute the chain
-        result = await runnable_chain.ainvoke({
-            "input": user_input,
-            "agent_id": agent_id,
-            "session_id": session_id
-        })
-
-        # Extract response
-        agent_response = result.get("output", "")
-        memory_metrics = result.get("memory_metrics", {})
-
-        # Get voice configuration from agent attributes
-        voice_config = prompt_chain.get_voice_config()
-        voice_id = voice_config.get("elevenlabsVoiceId") or state.get("voice_id")
-
-        # Determine workflow status based on voice settings
-        workflow_status = "response_generated"
-        if state.get("tts_enabled", True) and voice_id:
-            workflow_status = "processing_voice"
-
-        # Update state with response
-        updated_state = update_state(
-            state,
-            agent_response=agent_response,
-            workflow_status=workflow_status,
-            memory_metrics=memory_metrics,
-            session_id=session_id,
-            tenant_id=tenant_id,
-            agent_id=agent_id,
-            # Preserve voice settings for voice processor
-            voice_id=voice_id,
-            tts_enabled=state.get("tts_enabled", True)
-        )
-
-        logger.info(f"PromptChainTemplate response generated for agent {agent_id}, session {session_id}")
-        return updated_state
-
-    except ValueError as e:
-        logger.error(f"PromptChainTemplate validation error: {e}")
-        return update_state(
-            state,
-            workflow_status="error",
-            error_message=str(e)
-        )
-    except Exception as e:
-        logger.error(f"PromptChainTemplate processing error: {e}")
-        return update_state(
-            state,
-            workflow_status="error",
-            error_message=f"PromptChainTemplate processing failed: {str(e)}"
-        )
-
-async def agent_node(state: AgentState) -> AgentState:
-    """
-    Core agent processing node with unified memory and prompt handling
-
-    Required state keys:
-    - session_id: str (required, min 3 chars)
-    - tenant_id: str (optional, defaults to "default")
-    - user_input: str (required)
-    - traits: dict (required, must match prompt variables)
-    - agent_config: dict (optional, for additional config)
+    Generate agent response using PromptChainTemplate + Memory + Traits
+    Consolidated from response_generator.py utility functions
     """
     try:
-        # Extract and validate required inputs
+        # Debug: Log the state keys and user_input
+        logger.info(f"Agent node received state with keys: {list(state.keys())}")
+        logger.info(f"State user_input value: '{state.get('user_input')}'")
+        logger.info(f"State current_message value: '{state.get('current_message')}'")
+
+        # Extract required inputs - handle both GraphState and legacy AgentState schemas
         session_id = state.get("session_id")
-        tenant_id = state.get("tenant_id", "default")
-        user_input = state.get("user_input")
+        tenant_id = state.get("tenant_id") or state.get("user_id", "default")  # Handle both schemas
+        user_input = state.get("user_input") or state.get("input_text") or state.get("current_message", "")
         traits = state.get("traits", {})
+        agent_config = state.get("agent_config", {})
 
         # Input validation
         if not session_id:
             raise ValueError("session_id is required")
         if not user_input:
             raise ValueError("user_input is required")
-        if not traits:
-            raise ValueError("traits dictionary is required")
+        if not traits and not agent_config:
+            raise ValueError("traits dictionary or agent_config is required")
 
-        logger.debug(f"Processing agent request for session {session_id}")
+        # Handle traits from either direct traits or agent_config
+        if not traits and agent_config:
+            payload = agent_config.get("payload", {})
+            traits = {
+                "name": payload.get("name", "Assistant"),
+                "shortDescription": payload.get("shortDescription", "AI Assistant"),
+                "identity": payload.get("characterDescription", {}).get("identity", "The smartest man in the universe"),
+                "mission": payload.get("mission", "Assist users with their requests"),
+                "interactionStyle": payload.get("characterDescription", {}).get("interactionStyle", "Friendly and professional"),
+                **{trait: max(0, min(100, payload.get("traits", {}).get(trait, 50)))
+                   for trait in ["creativity", "empathy", "assertiveness", "verbosity",
+                               "formality", "confidence", "humor", "technicality", "safety"]}
+            }
 
-        # Initialize memory manager with session isolation
-        memory_manager = MemoryManager(
-            tenant_id=tenant_id,
-            agent_id=state.get("agent_id")
-        )
+        # Initialize unified memory manager with agent identity
+        agent_id = state.get("agent_id") or session_id
+        memory_manager = create_memory_manager(tenant_id, agent_id, traits)
 
-        # Validate and build prompt with traits
+        # Get comprehensive memory context for agent response
+        memory_context = await memory_manager.get_agent_context(user_input, session_id)
+
+        logger.info(f"Memory context: {memory_context.context_summary}")
+        logger.info(f"Confidence score: {memory_context.confidence_score:.2f}")
+        logger.info(f"RL adjustments: {memory_context.reinforcement_adjustments}")
+
+        # Build prompt with traits using prompt_loader
         try:
-            system_prompt = PromptLoader.build_prompt(traits)
+            # Create AgentPayload for prompt loading
+            from models.agent import AgentPayload, Traits, CharacterDescription, Voice
+            traits_obj = Traits(**{k: v for k, v in traits.items() if k in Traits.model_fields})
+            char_desc = CharacterDescription(
+                identity=traits.get("identity", "The smartest man in the universe"),
+                interactionStyle=traits.get("interactionStyle", "Friendly and professional")
+            )
+            temp_payload = AgentPayload(
+                name=traits.get("name", "Assistant"),
+                shortDescription=traits.get("shortDescription", "AI Assistant"),
+                characterDescription=char_desc,
+                voice=Voice(elevenlabsVoiceId="default"),
+                traits=traits_obj,
+                mission=traits.get("mission", "Assist users with their requests")
+            )
+            system_prompt = load_agent_prompt(temp_payload)
         except ValueError as e:
             logger.error(f"Prompt building failed: {e}")
-            return update_state(
-                state,
-                workflow_status="error",
-                error_message=f"Invalid agent configuration: {e}"
-            )
+            raise ValueError(f"Invalid agent configuration: {e}")
 
-        # Get thread history
-        thread_history = memory_manager.get_thread_history()
+        # Use memory context from unified system
+        thread_history = memory_context.thread_history
+        relevant_memories = memory_context.relevant_memories
 
-        # Build message sequence: System + History + User
+        # Apply reinforcement learning adjustments to traits
+        adjusted_traits = traits.copy()
+        for trait_key, adjustment in memory_context.reinforcement_adjustments.items():
+            if 'verbosity' in trait_key:
+                adjusted_traits['verbosity'] = max(0, min(100, adjusted_traits.get('verbosity', 50) + adjustment * 100))
+            elif 'confidence' in trait_key:
+                adjusted_traits['confidence'] = max(0, min(100, adjusted_traits.get('confidence', 50) + adjustment * 100))
+            elif 'formality' in trait_key:
+                adjusted_traits['formality'] = max(0, min(100, adjusted_traits.get('formality', 50) + adjustment * 100))
+
+        # Build enhanced message sequence with memory context
         messages = [SystemMessage(content=system_prompt)]
-        messages.extend(thread_history)
+
+        # Add relevant memories as context if available
+        if relevant_memories:
+            memory_context_msg = "Relevant context from memory:\n"
+            for i, memory in enumerate(relevant_memories[:3]):  # Top 3 most relevant
+                memory_context_msg += f"- {memory.get('text', '')[:200]}...\n"
+            messages.append(SystemMessage(content=memory_context_msg))
+
+        # Add thread history
+        for msg in thread_history:
+            if msg['role'] == 'user':
+                messages.append(HumanMessage(content=msg['content']))
+            elif msg['role'] == 'assistant':
+                messages.append(AIMessage(content=msg['content']))
+
+        # Add current user input
         messages.append(HumanMessage(content=user_input))
 
-        # Initialize LLM with trait-based configuration
-        temperature = traits.get("creativity", 50) / 100.0  # Convert to 0-1 scale
-        max_tokens = _calculate_max_tokens(traits.get("verbosity", 50))
+        # Initialize LLM with adjusted trait-based configuration
+        temperature = adjusted_traits.get("creativity", 50) / 100.0  # Convert to 0-1 scale
+        max_tokens = _calculate_max_tokens(adjusted_traits.get("verbosity", 50))
+
+        # Apply confidence adjustment to temperature
+        confidence_adjustment = memory_context.reinforcement_adjustments.get('confidence_delta', 0.0)
+        temperature = max(0.0, min(1.0, temperature + confidence_adjustment))
+
+        logger.info(f"LLM configuration: model={state.get('model', 'gpt-4o-mini')}, temperature={temperature:.2f}, max_tokens={max_tokens}")
+        logger.info(f"Applied trait adjustments: {adjusted_traits}")
+        logger.info(f"Memory enhanced messages: {len(messages)} total")
 
         llm = ChatOpenAI(
-            model=state.get("model", "gpt-5-nano"),
+            model=state.get("model", "gpt-4o-mini"),
             temperature=temperature,
             max_tokens=max_tokens,
             openai_api_key=settings.OPENAI_API_KEY
         )
 
         # Generate response
-        logger.debug(f"Generating response with {len(messages)} messages, temp={temperature:.2f}")
-        print(f"DEBUG: About to call LLM with model: {state.get('model', 'gpt-5-nano')}")
+        logger.info(f"Generating response with {len(messages)} messages, temp={temperature:.2f}")
+        logger.info(f"System prompt length: {len(system_prompt) if system_prompt else 0}")
+        logger.info(f"Thread history length: {len(thread_history)}")
+        logger.info(f"User input: '{user_input}'")
+        for i, msg in enumerate(messages):
+            logger.info(f"Message {i}: {type(msg).__name__} - '{msg.content[:100]}...' (length: {len(msg.content)})")
+
         response = await llm.ainvoke(messages)
-        print(f"DEBUG: LLM response content: '{response.content}'")
 
-        # Store conversation in memory
-        memory_manager.append_human(user_input)
-        memory_manager.append_ai(response.content)
+        # Debug logging for response
+        logger.info(f"OpenAI response type: {type(response)}")
+        logger.info(f"OpenAI response content: '{response.content}'")
+        logger.info(f"OpenAI response length: {len(response.content) if response.content else 0}")
 
-        # Update state with response - prepare for voice processing if enabled
-        workflow_status = "response_generated"
-        if state.get("tts_enabled", True) and state.get("voice_id"):
-            workflow_status = "processing_voice"
-
-        updated_state = update_state(
-            state,
-            current_message=response.content,
-            messages=messages + [response],
-            workflow_status=workflow_status,
+        # Process complete interaction through unified memory system
+        interaction_result = await memory_manager.process_interaction(
+            user_input=user_input,
+            agent_response=response.content,
             session_id=session_id,
-            tenant_id=tenant_id,
-            # Preserve voice settings for voice processor
-            voice_id=state.get("voice_id"),
-            tts_enabled=state.get("tts_enabled", True)
+            feedback=None  # Feedback will be added separately via API
         )
-        # Add agent_response for API compatibility
-        updated_state["agent_response"] = response.content
 
-        logger.info(f"Agent response generated for session {session_id}")
-        return updated_state
+        logger.info(f"Memory interaction processed: {interaction_result}")
 
-    except ValueError as e:
-        logger.error(f"Agent validation error: {e}")
-        return update_state(
-            state,
-            workflow_status="error",
-            error_message=str(e)
-        )
+        return response.content
+
     except Exception as e:
-        logger.error(f"Agent processing error: {e}")
-        return update_state(
-            state,
-            workflow_status="error",
-            error_message=f"Agent processing failed: {str(e)}"
-        )
+        logger.error(f"Agent response generation error: {e}")
+        raise
 
 def _calculate_max_tokens(verbosity: int) -> int:
     """Calculate max tokens based on verbosity trait (0-100)"""
@@ -214,74 +179,68 @@ def _calculate_max_tokens(verbosity: int) -> int:
     max_tokens_cap = 500
     return int(base_tokens + (verbosity / 100.0) * (max_tokens_cap - base_tokens))
 
-# Legacy integration function for existing LangGraph nodes
-async def integrate_with_orchestrator(state: AgentState) -> AgentState:
+def agent_node(memory):
     """
-    Integration wrapper for existing orchestrator workflow
-    Maps current state structure to new agent node requirements
+    Create agent node function.
+
+    Args:
+        memory: MemoryManager instance for backward compatibility
+
+    Returns:
+        Async function that processes state and generates agent response
     """
-    try:
-        # Extract agent config and current message
-        agent_config = state.get("agent_config", {})
-        current_message = state.get("current_message", "")
+    async def _agent_node(state: AgentState) -> AgentState:
+        """
+        Main agent node function - calls generate_agent_response utility
+        Returns response directly in state["agent_response"]
+        """
+        try:
+            # Generate response using consolidated utility
+            response_text = await generate_agent_response(state)
 
-        # Build traits from agent config payload
-        payload = agent_config.get("payload", {})
+            # Determine workflow status based on voice settings
+            workflow_status = "response_generated"
+            if state.get("tts_enabled", True) and state.get("voice_id"):
+                workflow_status = "processing_voice"
 
-        # Extract traits or use defaults
-        traits = {
-            "name": payload.get("name", "Assistant"),
-            "shortDescription": payload.get("shortDescription", "AI Assistant"),
-            "identity": payload.get("characterDescription", {}).get("identity", "Helpful AI assistant"),
-            "mission": payload.get("mission", "Assist users with their requests"),
-            "interactionStyle": payload.get("characterDescription", {}).get("interactionStyle", "Friendly and professional"),
-            # Personality traits with validation
-            **{trait: max(0, min(100, payload.get("traits", {}).get(trait, 50)))
-               for trait in ["creativity", "empathy", "assertiveness", "verbosity",
-                           "formality", "confidence", "humor", "technicality", "safety"]}
-        }
+            # Update state with response
+            logger.info(f"Before update_state: state keys = {list(state.keys())}")
+            logger.info(f"Attempting to set agent_response = '{response_text}'")
 
-        # Generate session_id if not present
-        session_id = state.get("session_id") or f"session_{state.get('agent_id', 'unknown')}"
+            updated_state = update_state(
+                state,
+                current_message=response_text,
+                agent_response=response_text,  # Direct response in agent_response
+                response_text=response_text,  # API expects response_text field
+                workflow_status=workflow_status,
+                session_id=state.get("session_id"),
+                tenant_id=state.get("tenant_id", "default"),
+                # Preserve voice settings for voice processor
+                voice_id=state.get("voice_id"),
+                tts_enabled=state.get("tts_enabled", True)
+            )
 
-        # Create new state for agent node
-        agent_state = {
-            **state,
-            "session_id": session_id,
-            "tenant_id": state.get("tenant_id", "default"),
-            "user_input": current_message,
-            "traits": traits
-        }
+            logger.info(f"After update_state: updated_state keys = {list(updated_state.keys())}")
+            logger.info(f"Final agent_response in state = '{updated_state.get('agent_response', 'STILL_NOT_FOUND')}'")
+            logger.info(f"Final workflow_status = '{updated_state.get('workflow_status', 'STATUS_NOT_SET')}')")
 
-        # Choose processing method based on available agent_id
-        agent_id = state.get("agent_id") or agent_config.get("id")
+            logger.info(f"Agent response generated for session {state.get('session_id')}")
+            return updated_state
 
-        if agent_id:
-            # Use PromptChainTemplate for agents with JSON configuration
-            logger.debug(f"Using PromptChainTemplate for agent {agent_id}")
-            result = await agent_node_with_prompt_chain({
-                **agent_state,
-                "agent_id": agent_id
-            })
-        else:
-            # Fall back to legacy agent processing
-            logger.debug("Using legacy agent processing (no agent_id)")
-            result = await agent_node(agent_state)
+        except ValueError as e:
+            logger.error(f"Agent validation error: {e}")
+            return update_state(
+                state,
+                workflow_status="error",
+                error_message=str(e)
+            )
+        except Exception as e:
+            logger.error(f"Agent processing error: {e}")
+            return update_state(
+                state,
+                workflow_status="error",
+                error_message=f"Agent processing failed: {str(e)}"
+            )
 
-        # Map result back to orchestrator format
-        return update_state(
-            state,
-            agent_response=result.get("agent_response", ""),
-            messages=result.get("messages", []),
-            workflow_status=result.get("workflow_status", "completed"),
-            memory_metrics=result.get("memory_metrics", {}),
-            error_message=result.get("error_message")
-        )
+    return _agent_node
 
-    except Exception as e:
-        logger.error(f"Orchestrator integration error: {e}")
-        return update_state(
-            state,
-            workflow_status="error",
-            error_message=f"Integration failed: {str(e)}"
-        )

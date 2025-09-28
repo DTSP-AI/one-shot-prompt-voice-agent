@@ -93,7 +93,7 @@ export function ChatInterface({ agent, conversationId }: ChatInterfaceProps) {
     setIsLoading(true)
 
     try {
-      const data = await api.post<AgentInvokeResponse>('/api/v1/agent/invoke', {
+      const data = await api.post<AgentInvokeResponse>(`/api/v1/agents/${agent.id}/invoke`, {
         user_input: userMsg.content,
         session_id: sessionId.current,
         tenant_id: 'default',

@@ -88,12 +88,7 @@ class DatabaseManager:
             CREATE TABLE IF NOT EXISTS agents (
                 id TEXT PRIMARY KEY,
                 name TEXT NOT NULL,
-                short_description TEXT,
-                identity TEXT,
-                mission TEXT,
-                traits TEXT,
-                voice_config TEXT,
-                system_prompt TEXT,
+                config TEXT NOT NULL,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
@@ -111,6 +106,48 @@ class DatabaseManager:
                 FOREIGN KEY (agent_id) REFERENCES agents(id)
             )
         ''')
+
+        # Create feedback table for RL integration
+        self._sqlite_conn.execute('''
+            CREATE TABLE IF NOT EXISTS feedback (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                feedback_type TEXT NOT NULL,
+                feedback_value REAL NOT NULL,
+                feedback_reason TEXT,
+                user_message TEXT,
+                agent_response TEXT,
+                memory_ids TEXT,
+                reinforcement_delta REAL,
+                created_at TEXT NOT NULL
+            )
+        ''')
+
+        # Create reflections table
+        self._sqlite_conn.execute('''
+            CREATE TABLE IF NOT EXISTS reflections (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                agent_id TEXT NOT NULL,
+                user_id TEXT NOT NULL,
+                tenant_id TEXT NOT NULL,
+                outcome TEXT NOT NULL,
+                trigger_type TEXT NOT NULL,
+                memory_reflection_id TEXT,
+                created_at TEXT NOT NULL
+            )
+        ''')
+
+        # Create indexes for performance
+        self._sqlite_conn.execute('CREATE INDEX IF NOT EXISTS idx_feedback_agent_id ON feedback(agent_id)')
+        self._sqlite_conn.execute('CREATE INDEX IF NOT EXISTS idx_feedback_session_id ON feedback(session_id)')
+        self._sqlite_conn.execute('CREATE INDEX IF NOT EXISTS idx_feedback_created_at ON feedback(created_at)')
+        self._sqlite_conn.execute('CREATE INDEX IF NOT EXISTS idx_reflections_agent_id ON reflections(agent_id)')
+        self._sqlite_conn.execute('CREATE INDEX IF NOT EXISTS idx_reflections_session_id ON reflections(session_id)')
+
         self._sqlite_conn.commit()
 
     @property

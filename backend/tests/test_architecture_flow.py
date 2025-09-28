@@ -12,8 +12,8 @@ from pathlib import Path
 from unittest.mock import patch, Mock, AsyncMock
 
 from api.agents import create_agent, AgentCreateRequest
-from agents.prompt_chain_template import create_prompt_chain_template
-from agents.nodes.agent_node import agent_node_with_prompt_chain
+from agents.prompt_manager import PromptChain
+from agents.nodes.agent_node import agent_node
 
 class TestArchitectureFlow:
     """Test complete architecture flow according to Memory Flow + JSON Prompt Architecture Map"""
@@ -111,7 +111,7 @@ class TestArchitectureFlow:
                 with patch('agents.prompt_loader.Path') as mock_prompt_path:
                     mock_prompt_path.return_value.parent.parent = temp_prompts_dir.parent
 
-                    prompt_chain = create_prompt_chain_template(agent_id)
+                    prompt_chain = PromptChain(agent_id)
 
                     # Verify it loads the agent data
                     assert prompt_chain.agent_id == agent_id
@@ -152,7 +152,7 @@ class TestArchitectureFlow:
                             "voice_id": "test_voice_123"
                         }
 
-                        result = await agent_node_with_prompt_chain(agent_state)
+                        result = await agent_node(agent_state)
 
                         # Verify execution results
                         assert result["workflow_status"] == "processing_voice"  # Should prepare for TTS
@@ -263,7 +263,7 @@ class TestArchitectureFlow:
                 json.dump(attributes_data, f)
 
             # Test PromptChainTemplate with memory
-            prompt_chain = create_prompt_chain_template(agent_id)
+            prompt_chain = PromptChain(agent_id)
 
             with patch('memory.memory_manager.mem0') as mock_mem0:
                 mock_mem0.Memory.return_value = Mock()
